@@ -8,6 +8,13 @@ resource "aws_instance" "web-server" {
   ami           = "ami-02521d90e7410d9f0"
   instance_type = "t2.micro"
   key_name      = "jenkins"
+
+   tags = {
+      Name = "web-server"
+      Environment = "Dev"
+      Owner = "Subhadra"
+  }
+
 }
 
 #output.tf file
