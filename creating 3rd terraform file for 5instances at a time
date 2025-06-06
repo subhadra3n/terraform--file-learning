@@ -1,0 +1,28 @@
+#main.tf
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "web-server" {
+  ami           = "ami-02521d90e7410d9f0"
+  instance_type = "t2.micro"
+  key_name      = "jenkins"
+  count = 5
+
+  tags={
+   Name= "web-server-${count.index+1}"
+   environment= "Dev"
+   Owner= "subhadra"
+}
+}
+
+#output.tf
+output "instance_ids" {
+  value       = [for instance in aws_instance.web-server : instance.id]
+  description = "List of EC2 instance IDs"
+}
+
+output "instance_public_ips" {
+  value       = [for instance in aws_instance.web-server : instance.public_ip]
+  description = "List of public IP addresses"
+}
