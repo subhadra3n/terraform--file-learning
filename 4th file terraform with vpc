@@ -25,3 +25,20 @@ resource "aws_instance" "web-server" {
     Owner       = "subhadra"
   }
 }
+
+
+#output.tf
+output "instance_id" {
+  value       = aws_instance.web-server.id
+  description = "Get EC2 instance ID"
+}
+
+output "instance_vpc_id" {
+  value       = aws_vpc.main.id
+  description = "Get VPC ID of the instance"
+}
+
+output "instance_public_ip" {
+  value       = aws_instance.web-server.public_ip
+  description = "Get public IP address of the instance"
+}
