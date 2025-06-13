@@ -66,6 +66,22 @@ Terraform project that includes:
 ✅ 3 environments: dev, staging, and prod
 __________________________________________________________________________________________________________________________
 
+flow chart to understand steps easily:
+internet------vm's connect----------goal
+vpc,subnets--public subnet,private subnet
+IGW,
+EIP--nat link
+NAT GW
+Route table--public,private
+Route table association
+SG's
+NACL--------same as sg but d/f is it has option to deny traffic as well------to port,from port, protocol,cidr,rule_no,rule action
+
+
+
+
+
+________________________________________________________________________________________________________________________
 environments/dev/main.tf (same for staging/prod)
 terraform {
   backend "s3" {
