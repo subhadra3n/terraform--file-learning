@@ -1,0 +1,448 @@
+All AWS resources (EC2, VPC, NAT, IGW, ALB, RDS, IAM, S3, ASG, NACL)
+
+Multi-environment support (dev, staging, prod)
+
+Backend setup (S3 + DynamoDB for state management)
+
+Modules and reusable structure
+multi-env-complete/
+├── backend-setup/
+│   ├── s3_backend.tf
+│   └── dynamodb_lock.tf
+├── environments/
+│   ├── dev/
+│   │   ├── backend.tf
+│   │   ├── providers.tf
+│   │   ├── main.tf
+│   │   └── variables.tf
+│   ├── staging/
+│   └── prod/
+├── modules/
+│   ├── vpc/
+│   ├── ec2/
+│   ├── rds/
+│   ├── alb/
+│   ├── autoscaling/
+│   ├── iam/
+│   └── s3/
+├── README.md
+
+folder structure:
+multi-env-complete/
+├── backend-setup/
+│   ├── s3_backend.tf
+│   └── dynamodb_lock.tf
+├── environments/
+│   ├── dev/
+│   ├── staging/
+│   └── prod/
+├── modules/
+│   ├── vpc/
+│   ├── ec2/
+│   ├── rds/
+│   ├── alb/
+│   ├── autoscaling/
+│   ├── iam/
+│   └── s3/
+_
+__________________________________________________________________________________________________________________________________________\\
+
+Terraform project that includes:
+
+✅ EC2, VPC, NAT Gateway, Internet Gateway
+
+✅ Public & Private Subnets, Security Groups, NACLs
+
+✅ IAM Roles & Policies
+
+✅ Auto Scaling Group
+
+✅ RDS (MySQL)
+
+✅ S3 Bucket
+
+✅ Application Load Balancer (ALB)
+
+✅ 3 environments: dev, staging, and prod
+__________________________________________________________________________________________________________________________
+
+environments/dev/main.tf (same for staging/prod)
+terraform {
+  backend "s3" {
+    bucket = "tf-backend-dev"
+    key    = "dev/terraform.tfstate"
+    region = "ap-south-1"
+  }
+}
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+module "vpc" {
+  source = "../../modules/vpc"
+  env    = "dev"
+}
+
+module "iam" {
+  source = "../../modules/iam"
+  env    = "dev"
+}
+
+module "ec2" {
+  source            = "../../modules/ec2"
+  subnet_id         = module.vpc.public_subnet_id
+  security_group_id = module.vpc.sg_id
+}
+
+module "rds" {
+  source      = "../../modules/rds"
+  subnet_ids  = [module.vpc.private_subnet_id]
+  db_username = "admin"
+  db_password = "StrongP@ss123"
+  vpc_id      = module.vpc.vpc_id
+}
+
+module "alb" {
+  source             = "../../modules/alb"
+  vpc_id             = module.vpc.vpc_id
+  public_subnet_id   = module.vpc.public_subnet_id
+  target_instance_id = module.ec2.instance_id
+}
+
+module "s3" {
+  source = "../../modules/s3"
+}
+
+module "autoscaling" {
+  source               = "../../modules/autoscaling"
+  launch_template_name = "lt-dev"
+  subnet_id            = module.vpc.public_subnet_id
+}
+___________________________________________________
+modules/vpc/main.tf (core networking with NACL, NAT, IGW, Subnets)
+variable "env" {}
+
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = { Name = "vpc-${var.env}" }
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+  tags = { Name = "igw-${var.env}" }
+}
+
+resource "aws_eip" "nat" {
+  vpc = true
+}
+
+resource "aws_nat_gateway" "natgw" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public.id
+  tags = { Name = "natgw-${var.env}" }
+}
+
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
+  availability_zone       = "ap-south-1a"
+  tags = { Name = "public-${var.env}" }
+}
+
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "ap-south-1a"
+  tags = { Name = "private-${var.env}" }
+}
+
+resource "aws_security_group" "sg" {
+  name   = "sg-${var.env}"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "sg-${var.env}" }
+}
+
+resource "aws_network_acl" "nacl" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = [aws_subnet.public.id, aws_subnet.private.id]
+
+  ingress {
+    rule_no     = 100
+    protocol    = "tcp"
+    rule_action = "allow"
+    cidr_block  = "0.0.0.0/0"
+    from_port   = 0
+    to_port     = 65535
+  }
+
+  egress {
+    rule_no     = 200
+    protocol    = "tcp"
+    rule_action = "allow"
+    cidr_block  = "0.0.0.0/0"
+    from_port   = 0
+    to_port     = 65535
+  }
+
+  tags = { Name = "nacl-${var.env}" }
+}
+
+output "vpc_id"             { value = aws_vpc.main.id }
+output "public_subnet_id"   { value = aws_subnet.public.id }
+output "private_subnet_id"  { value = aws_subnet.private.id }
+output "sg_id"              { value = aws_security_group.sg.id }
+____________________________________________________________
+modules/ec2/main.tf
+variable "subnet_id" {}
+variable "security_group_id" {}
+
+resource "aws_instance" "web" {
+  ami                    = "ami-02521d90e7410d9f0" # Amazon Linux 2 in ap-south-1
+  instance_type          = "t2.micro"
+  subnet_id              = var.subnet_id
+  vpc_security_group_ids = [var.security_group_id]
+  key_name               = "your-key-name" # Replace with your actual key
+
+  tags = {
+    Name = "web-instance"
+  }
+}
+
+output "instance_id" {
+  value = aws_instance.web.id
+}
+________________________________________________________________
+modules/rds/main.tf
+
+variable "subnet_ids" {
+  type = list(string)
+}
+variable "db_username" {}
+variable "db_password" {}
+variable "vpc_id" {}
+
+resource "aws_db_subnet_group" "default" {
+  name       = "main-subnet-group"
+  subnet_ids = var.subnet_ids
+
+  tags = {
+    Name = "main-subnet-group"
+  }
+}
+
+resource "aws_db_instance" "rds" {
+  identifier             = "mydb-instance"
+  allocated_storage      = 20
+  engine                 = "mysql"
+  engine_version         = "8.0"
+  instance_class         = "db.t3.micro"
+  name                   = "mydatabase"
+  username               = var.db_username
+  password               = var.db_password
+  db_subnet_group_name   = aws_db_subnet_group.default.name
+  skip_final_snapshot    = true
+  vpc_security_group_ids = []
+
+  tags = {
+    Name = "rds-db"
+  }
+}
+________________________________________________________________---
+modules/alb/main.tfvariable "vpc_id" {}
+variable "public_subnet_id" {}
+variable "target_instance_id" {}
+
+resource "aws_lb" "app_lb" {
+  name               = "app-lb"
+  internal           = false
+  load_balancer_type = "application"
+  subnets            = [var.public_subnet_id]
+
+  tags = {
+    Name = "app-lb"
+  }
+}
+
+resource "aws_lb_target_group" "tg" {
+  name     = "app-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+}
+
+resource "aws_lb_target_group_attachment" "target" {
+  target_group_arn = aws_lb_target_group.tg.arn
+  target_id        = var.target_instance_id
+  port             = 80
+}
+
+resource "aws_lb_listener" "listener" {
+  load_balancer_arn = aws_lb.app_lb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg.arn
+  }
+}
+______________________________________________________________--
+modules/autoscaling/main.tf
+variable "launch_template_name" {}
+variable "subnet_id" {}
+
+resource "aws_launch_template" "lt" {
+  name_prefix   = var.launch_template_name
+  image_id      = "ami-02521d90e7410d9f0"
+  instance_type = "t2.micro"
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = "asg-instance"
+    }
+  }
+}
+
+resource "aws_autoscaling_group" "asg" {
+  desired_capacity     = 2
+  max_size             = 3
+  min_size             = 1
+  vpc_zone_identifier  = [var.subnet_id]
+  launch_template {
+    id      = aws_launch_template.lt.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "asg-instance"
+    propagate_at_launch = true
+  }
+}
+_____________________________________________________
+modules/s3/main.tf
+resource "random_id" "bucket_suffix" {
+  byte_length = 4
+}
+
+resource "aws_s3_bucket" "app_bucket" {
+  bucket = "my-app-bucket-${random_id.bucket_suffix.hex}"
+  acl    = "private"
+
+  tags = {
+    Name = "my-app-bucket"
+  }
+}
+__________________________________________________
+modules/iam/main.tf
+variable "env" {}
+
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-role-${var.env}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_policy" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
+__________________________________________________________
+Step-by-Step: S3 + DynamoDB Backend Setup for Terraform1. Create the S3 bucket for storing remote state
+You only need one S3 bucket, and each environment will have its own key path inside
+# backend-setup/s3_backend.tf
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_s3_bucket" "tf_backend" {
+  bucket = "terraform-backend-prod-example"
+  force_destroy = true
+
+  versioning {
+    enabled = true
+  }
+
+  tags = {
+    Name = "Terraform Backend Bucket"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "block" {
+  bucket = aws_s3_bucket.tf_backend.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+____________________________________________
+2. Create a DynamoDB table for state locking
+# backend-setup/dynamodb_lock.tf
+resource "aws_dynamodb_table" "tf_lock" {
+  name         = "terraform-state-lock"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "Terraform Lock Table"
+  }
+}
+3. Deploy the backend infrastructure
+cd backend-setup
+terraform init
+terraform apply
+--______________________________________--
+4. Configure the backend in each environment
+terraform {
+  backend "s3" {
+    bucket         = "terraform-backend-prod-example"
+    key            = "prod/terraform.tfstate"   # Change per environment (dev/staging/prod)
+    region         = "ap-south-1"
+    dynamodb_table = "terraform-state-lock"
+    encrypt        = true
+  }
+}
