@@ -1,4 +1,4 @@
-All AWS resources (EC2, VPC, NAT, IGW, ALB, RDS, IAM, S3, ASG, NACL)
+All AWS resources (EC2, VPC, NAT, IGW, ALB, RDS, IAM, S3, ASG, NACL,Elatic ip)
 
 Multi-environment support (dev, staging, prod)
 
@@ -136,7 +136,7 @@ resource "aws_internet_gateway" "igw" {
   tags = { Name = "igw-${var.env}" }
 }
 
-resource "aws_eip" "nat" {
+resource "aws_eip" "nat" {          #Elastic ip
   vpc = true
 }
 
