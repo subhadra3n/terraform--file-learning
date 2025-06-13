@@ -1,0 +1,39 @@
+multi-env-complete/
+├── backend-setup/
+│   ├── s3_backend.tf
+│   └── dynamodb_lock.tf
+├── environments/
+│   ├── dev/
+│   │   ├── backend.tf
+│   │   ├── providers.tf
+│   │   ├── main.tf
+│   │   └── variables.tf
+│   ├── staging/
+│   └── prod/
+├── modules/
+│   ├── vpc/
+│   ├── ec2/
+│   ├── rds/
+│   ├── alb/
+│   ├── autoscaling/
+│   ├── iam/
+│   └── s3/
+├── README.md
+
+folder structure:
+multi-env-complete/
+├── backend-setup/
+│   ├── s3_backend.tf
+│   └── dynamodb_lock.tf
+├── environments/
+│   ├── dev/
+│   ├── staging/
+│   └── prod/
+├── modules/
+│   ├── vpc/
+│   ├── ec2/
+│   ├── rds/
+│   ├── alb/
+│   ├── autoscaling/
+│   ├── iam/
+│   └── s3/
