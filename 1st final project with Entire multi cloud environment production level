@@ -136,10 +136,17 @@ resource "aws_internet_gateway" "igw" {
   tags = { Name = "igw-${var.env}" }
 }
 
-resource "aws_eip" "nat" {          #Elastic ip
-  vpc = true
-}
+resource "aws_eip" "nat" {          #Elastic ip------🔁 Flow:
+                                   #Allocate a public IP (aws_eip)
+vpc = true
+}                                     #Attach it to a NAT Gateway
 
+                                      #NAT Gateway sits in Public Subnet
+
+                                         #Private subnets route internet traffic via the NAT
+
+
+ 
 resource "aws_nat_gateway" "natgw" {
   allocation_id = aws_eip.nat.id
   subnet_id     = aws_subnet.public.id
