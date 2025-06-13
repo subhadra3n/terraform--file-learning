@@ -309,15 +309,17 @@ resource "aws_instance" "web" {
 output "instance_id" {
   value = aws_instance.web.id
 }
-________________________________________________________________
-modules/rds/main.tf
+________________________________________________________________------------------------------------
 
+modules/rds/variable.tf
 variable "subnet_ids" {
   type = list(string)
 }
 variable "db_username" {}
 variable "db_password" {}
 variable "vpc_id" {}
+
+modules/rds/main.tf
 
 resource "aws_db_subnet_group" "default" {
   name       = "main-subnet-group"
@@ -346,10 +348,13 @@ resource "aws_db_instance" "rds" {
   }
 }
 ________________________________________________________________---
-modules/alb/main.tfvariable "vpc_id" {}
+-----------------------------modules/alb/main.tf
+modules/alb/variable.tf
+variable "vpc_id" {}
 variable "public_subnet_id" {}
 variable "target_instance_id" {}
 
+modules/alb/main.tf
 resource "aws_lb" "app_lb" {
   name               = "app-lb"
   internal           = false
@@ -385,7 +390,9 @@ resource "aws_lb_listener" "listener" {
   }
 }
 ______________________________________________________________--
-modules/autoscaling/main.tf
+----------------------modules/autoscaling/main.tf
+modules/autoscaling/variable.tf
+
 variable "launch_template_name" {}
 variable "subnet_id" {}
 
