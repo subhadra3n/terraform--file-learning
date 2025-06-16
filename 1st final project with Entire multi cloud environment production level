@@ -184,6 +184,7 @@ A NAT Gateway is used to allow outbound internet access from private subnets in 
 resource "aws_nat_gateway" "natgw" {
   allocation_id = aws_eip.nat.id
   subnet_id     = aws_subnet.public.id
+                                            # it's a optional------we can also mention depends_on = [aws_internet_gateway.gw]--------it tells create natgw-----only after igw is created
   tags = { Name = "natgw-${var.env}" }
 }
 
