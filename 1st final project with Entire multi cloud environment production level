@@ -152,6 +152,17 @@ resource "aws_internet_gateway" "igw" {
   tags = { Name = "igw-${var.env}" }
 }
 
+✅ What depends_on does:
+It tells Terraform:
+
+"Hey, don’t even try creating the NAT Gateway until the Internet Gateway is created."
+
+This prevents "ResourceNotReady" or "DependencyViolation" errors when deploying NAT gateways.
+
+
+
+
+
 resource "aws_eip" "nat" {          #Elastic ip------🔁 Flow:
                                    #Allocate a public IP (aws_eip)
 vpc = true
@@ -161,7 +172,7 @@ vpc = true
 
                                          #Private subnets route internet traffic via the NAT
 
-
+A NAT Gateway is used to allow outbound internet access from private subnets in a VPC, but it does not allow inbound internet traffic.
  
 resource "aws_nat_gateway" "natgw" {
   allocation_id = aws_eip.nat.id
