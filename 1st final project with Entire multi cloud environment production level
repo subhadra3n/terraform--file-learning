@@ -1,3 +1,10 @@
+full terraform structure:
+modules
+1.create all individual files
+2.varibales.tf
+3.terraform.tfvars-----to store values of variables
+output.tf
+
 All AWS resources (EC2, VPC, NAT, IGW, ALB, RDS, IAM, S3, ASG, NACL,Elatic ip)
 
 Multi-environment support (dev, staging, prod)
