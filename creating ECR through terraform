@@ -1,0 +1,78 @@
+resource "aws_ecr_repository" "example" {
+  name                 = "my-app-repo"
+  image_tag_mutability = "MUTABLE"  # or "IMMUTABLE" to prevent overwriting tags
+  force_delete         = true       # Automatically delete images when the repo is destroyed
+
+  image_scanning_configuration {
+    scan_on_push = true            # Enables automated vulnerability scanning
+  }
+
+  tags = {
+    Environment = "dev"
+    Name        = "my-app-repo"
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "example" {
+  repository = aws_ecr_repository.example.name
+
+  policy = <<EOF
+{
+  "rules": [
+    {
+      "rulePriority": 1,
+      "description": "Remove untagged images after 14 days",
+      "selection": {
+        "tagStatus": "untagged",
+        "countType": "sinceImagePushed",
+        "countUnit": "days",
+        "countNumber": 14
+      },
+      "action": {
+        "type": "expire"
+      }
+    }
+  ]
+}
+EOF
+}
+__________________________
+from shell script #!/bin/bash
+
+# Variables
+REPO_NAME="my-app-repo"
+AWS_REGION="us-east-1"
+
+# Create ECR repository
+aws ecr create-repository \
+  --repository-name "$REPO_NAME" \
+  --region "$AWS_REGION" \
+  --image-scanning-configuration scanOnPush=true \
+  --image-tag-mutability MUTABLE \
+  --tags Key=Environment,Value=dev Key=Name,Value="$REPO_NAME"
+
+echo "✅ ECR repository '$REPO_NAME' created."
+
+# Optional: Add lifecycle policy to clean up untagged images after 14 days
+aws ecr put-lifecycle-policy \
+  --repository-name "$REPO_NAME" \
+  --region "$AWS_REGION" \
+  --lifecycle-policy-text '{
+    "rules": [
+      {
+        "rulePriority": 1,
+        "description": "Expire untagged images older than 14 days",
+        "selection": {
+          "tagStatus": "untagged",
+          "countType": "sinceImagePushed",
+          "countUnit": "days",
+          "countNumber": 14
+        },
+        "action": {
+          "type": "expire"
+        }
+      }
+    ]
+  }'
+
+echo "✅ Lifecycle policy applied to '$REPO_NAME'."
