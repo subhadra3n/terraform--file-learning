@@ -1,0 +1,19 @@
+terraform init---initialising the thought
+it will create .terraform folder-------------
+code validation is done
+it will download all the plugins from terraform repo---plugins  will pull out the data
+lock.json--file is also creared
+_____________________________________________________________________________
+terraform plan--------
+it eeill create a file i.e bluep rint of infra--------------file----
+
+__________________________________________________________________________
+terraform apply
+will create the actual infrasture in the cloud
+____________________________________---
+terraform destroy
+
+it is used to destroy the infra
+___________________________________________________________
+terraform.tfstate---------file has current version, resuorces etc
+
