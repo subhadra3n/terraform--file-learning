@@ -28,3 +28,46 @@ port =3000
 protocol = "HTTP"
 vpc_id = aws_vpc.main.id
 }
+_________________________________________________________________________________________________________________________________________--
+in the listner block-------
+type--Forward, redirect, fixed_response
+redirect ---code--
+1. type = "redirect"
+This action tells the load balancer to redirect the request to another URL or protocol (common use: HTTP → HTTPS redirect).
+
+Example: Redirect HTTP to HTTPS
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.example.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+_________________________________________________________----
+2.type = "fixed_response
+This tells the ALB to immediately return a custom HTTP response without forwarding the request to a target group.
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.example.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Service temporarily unavailable. Please try again later."
+      status_code  = "503"
+    }
+  }
+}
