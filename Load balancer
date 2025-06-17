@@ -5,7 +5,11 @@ resource "aws_lb" "front_end"
 load_balancer_type = "application"  or "n/w"
 security groups = 
 subnets = 
-enable_deletion_protection = false
+enable_deletion_protection = false                 # When deletion protection is enabled, it prevents the load balancer from being accidentally deleted. enable_deletion_protection = true
+                                                   #Even if someone tries to delete it via the AWS Console, CLI, or SDK, the deletion will fail unless deletion protection is first disabled.
+                                                   # Useful for development or testing environments where frequent resource creation/deletion is common.
+
+                                                   #Not recommended for production environments where uptime is critical.
 
 resource "aws_lb_listener" "front_end"{
 load_balance_arn = aws_lb.fron_end.arn-------------arn--it     will automatically create in LB
