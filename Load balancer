@@ -16,7 +16,7 @@ N/w load balancer--------------------
 resource "aws_lb" "nlb" {
   name               = "example-nlb"
   load_balancer_type = "network"
-  subnets            = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
+  subnets            = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]             # not req to add security groups in n/w load balancer
   enable_deletion_protection = false
 }
 
