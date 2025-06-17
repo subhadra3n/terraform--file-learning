@@ -1,3 +1,49 @@
+
+✅ Application Load Balancer (ALB)
+Yes, ALBs require security groups because they operate at Layer 7 (HTTP/HTTPS) and use Elastic Network Interfaces (ENIs) in your VPC.
+
+You must attach security groups to control inbound and outbound access.
+
+✅ Network Load Balancer (NLB)
+No, NLBs do not use security groups.
+
+NLBs operate at Layer 4 (TCP/UDP) and do not support security groups directly.
+
+Instead, you control access through security groups attached to your targets (like EC2 instances).
+________________________________________________________________________________________________________________________________________________________-
+N/w load balancer--------------------
+
+resource "aws_lb" "nlb" {
+  name               = "example-nlb"
+  load_balancer_type = "network"
+  subnets            = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
+  enable_deletion_protection = false
+}
+
+resource "aws_lb_target_group" "nlb_tg" {
+  name     = "nlb-target-group"
+  port     = 80
+  protocol = "TCP"
+  vpc_id   = aws_vpc.main.id
+}
+
+resource "aws_lb_listener" "nlb_listener" {
+  load_balancer_arn = aws_lb.nlb.arn
+  port              = 80
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.nlb_tg.arn
+  }
+}
+
+
+
+________________________________________________________________________________________________________________________________________---------------------------------
+
+Application load balancer:--------------
+
 resource "aws_lb" "front_end"
 
  name =
