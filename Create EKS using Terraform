@@ -1,0 +1,22 @@
+
+creating EKS cluster using Terraform
+
+provider "aws" {
+  region = "us-west-2"
+}
+
+module "eks" {
+  source          = "terraform-aws-modules/eks/aws"
+  cluster_name    = "example-cluster"
+  cluster_version = "1.31"
+  subnets         = ["subnet-xxxx", "subnet-yyyy"]
+  
+  node_groups = {
+    eks_nodes = {
+      desired_capacity = 2
+      max_capacity     = 3
+      min_capacity     = 1
+      instance_type    = "t3.medium"
+    }
+  }
+}
