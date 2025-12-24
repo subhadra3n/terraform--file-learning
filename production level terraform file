@@ -45,6 +45,8 @@ provider.tf:-----cloud provider, or multi clioud provider, region
 provider "aws" {
   region = "ap-south-1"
 }
+
+Terraform, provider.tf defines the cloud provider and region, while Availability Zones are configured at the resource level based on the service requirements.”
 __________________________________________________________________________________________________________________
 main.tf:
 module "vpc" {
