@@ -1,0 +1,65 @@
+terraform/
+├── modules/
+│   ├── aws/
+│   │   ├── vpc/
+│   │   │   ├── main.tf
+│   │   │   ├── variables.tf
+│   │   │   └── outputs.tf
+│   │   ├── ec2/
+│   │   ├── eks/
+│   │   ├── iam/
+│   │   └── rds/
+│   │
+│   ├── azure/
+│   │   ├── network/
+│   │   │   ├── vnet.tf
+│   │   │   ├── variables.tf
+│   │   │   └── outputs.tf
+│   │   ├── vm/
+│   │   ├── aks/
+│   │   ├── iam/
+│   │   └── storage/
+│   │
+│   └── gcp/
+│       ├── network/
+│       │   ├── vpc.tf
+│       │   ├── variables.tf
+│       │   └── outputs.tf
+│       ├── compute/
+│       ├── gke/
+│       ├── iam/
+│       └── storage/
+│
+├── environments/
+│   ├── dev/
+│   │   ├── aws/
+│   │   │   ├── provider.tf
+│   │   │   ├── backend.tf
+│   │   │   ├── main.tf
+│   │   │   └── terraform.tfvars
+│   │   ├── azure/
+│   │   │   ├── provider.tf
+│   │   │   ├── backend.tf
+│   │   │   ├── main.tf
+│   │   │   └── terraform.tfvars
+│   │   └── gcp/
+│   │       ├── provider.tf
+│   │       ├── backend.tf
+│   │       ├── main.tf
+│   │       └── terraform.tfvars
+│   │
+│   ├── qa/
+│   │   └── (same structure as dev)
+│   │
+│   └── prod/
+│       └── (same structure as dev)
+│
+├── global/
+│   ├── iam/
+│   │   ├── aws.tf
+│   │   ├── azure.tf
+│   │   └── gcp.tf
+│   └── backend/
+│       └── remote_state.tf
+│
+└── README.md
