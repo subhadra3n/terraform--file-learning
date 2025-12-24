@@ -1,3 +1,5 @@
+
+AWS needs only region because the account is inferred, Azure mandates the features block with subscription context, and GCP strictly requires a project since all resources are project-scoped.”
 # AWS Provider
 provider "aws" {
   region = "ap-south-1"
@@ -13,3 +15,21 @@ provider "google" {
   project = "my-gcp-project"
   region  = "asia-south1"
 }
+__________________________________________
+provider "google" {
+  project = var.gcp_project
+  region  = var.gcp_region
+}
+2️⃣ Via environment variable
+
+export GOOGLE_PROJECT=my-gcp-project
+___________________________________________
+Why features {} is mandatory?
+
+Azure provider requires internal feature toggles
+
+Subscription is usually taken from login context or env vars
+
+🧠 Interview line:
+
+“Azure requires the features {} block even if it’s empty; the subscription acts as the main scope.”
