@@ -1,0 +1,93 @@
+Final Interview Summary (Very Strong)
+
+“AWS IAM is policy-based, Azure IAM is scope-based using RBAC, and GCP IAM is hierarchy-based using role bindings to members.”
+| Purpose    | AWS           | Azure             | GCP             |
+| ---------- | ------------- | ----------------- | --------------- |
+| Identity   | IAM Role      | Service Principal | Service Account |
+| Permission | Policy        | RBAC Role         | IAM Role        |
+| Assignment | Attach policy | Role assignment   | Role binding    |
+
+“IAM is usually kept in a separate reusable module because it’s shared across multiple services and environments.”
+1️⃣ AWS IAM – User, Role, Policy
+Create IAM Policy
+
+resource "aws_iam_policy" "s3_read" {
+  name = "s3-read-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:ListBucket"]
+      Resource = "*"
+    }]
+  })
+}
+Create IAM Role (for EC2 / EKS / Lambda)
+
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+Attach Policy to Role
+resource "aws_iam_role_policy_attachment" "attach" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = aws_iam_policy.s3_read.arn
+}
+Interview line
+
+“In AWS, we create IAM policies and attach them to roles, which are assumed by services like EC2 or EKS.”
+___________________________________________________________________________________________________________
+2️⃣ Azure IAM – Service Principal + RBAC Role
+🔹 Create Resource Group
+resource "azurerm_resource_group" "rg" {
+  name     = "demo-rg"
+  location = "Central India"
+}
+
+Create Azure AD Application
+resource "azuread_application" "app" {
+  display_name = "demo-app"
+}
+
+Create Service Principal
+resource "azuread_service_principal" "sp" {
+  application_id = azuread_application.app.application_id
+}
+
+Assign RBAC Role
+resource "azurerm_role_assignment" "rbac" {
+  scope                = azurerm_resource_group.rg.id
+  role_definition_name = "Reader"
+  principal_id         = azuread_service_principal.sp.object_id
+}
+Interview line
+
+“In Azure, IAM is implemented using Entra ID identities and RBAC role assignments at subscription or resource group level.”
+________________________________________________________________________________________________________________________
+3️⃣ GCP IAM – Service Account + Role Binding
+🔹 Create Service Account
+resource "google_service_account" "sa" {
+  account_id   = "demo-sa"
+  display_name = "Demo Service Account"
+}
+Assign IAM Role
+resource "google_project_iam_member" "binding" {
+  project = var.gcp_project
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${google_service_account.sa.email}"
+}
+Interview line
+
+“In GCP, IAM is managed by binding roles to members like service accounts at the project or organization level.”
