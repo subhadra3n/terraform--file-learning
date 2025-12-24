@@ -1,0 +1,15 @@
+# AWS Provider
+provider "aws" {
+  region = "ap-south-1"
+}
+
+# Azure Provider
+provider "azurerm" {
+  features {}
+}
+
+# GCP Provider
+provider "google" {
+  project = "my-gcp-project"
+  region  = "asia-south1"
+}
