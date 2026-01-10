@@ -1,0 +1,215 @@
+Client / Internet
+       ↓
+   Internet Gateway (IGW)
+       ↓
+       VPC (CIDR block)
+       ↓
+   ┌───────────────┐
+   │ Availability  │
+   │   Zone (AZ)   │
+   └───────────────┘
+       ↓
+   Subnets
+       ├─ Public Subnet
+       │     ↓
+       │   EC2 (with Public IP)
+       │     ↓
+       │   Load Balancer (ALB/NLB)
+       │     ↓
+       │   NAT Gateway  ← for private subnet outbound
+       │
+       └─ Private Subnet
+             ↓
+       Application Servers
+             ↓
+           Databases
+
+_____________________________________
+terraform ec2 creation:
+1.name:
+2.Ami_id
+9.az
+10.IAM
+3.Instance_type
+4.vpc_id
+5.subnet_id
+6.security group_id
+7.key_pair
+8.ebs_volume
+_________________________________________________
+vpc---------
+name:
+cidr:10.0.0.0/16----get 65 536 ips-(2^32 -16)--2^16
+dns_hostname:
+dns_support
+__________________-----
+Subnet:
+name
+cidr:10.0.1.0/24---get 256 ips--(2^24 - 16)----2^8-----
+vpc_id
+az:
+________________________
+igw:  attach igw to vpc
+“Traffic from the internet first hits the Internet Gateway. It then goes to the public subnet 
+via the route table. Within the public subnet, EC2 instances with public IPs handle the request. For outgoing traffic, EC2 sends it back through the subnet’s route table to the IGW, and then to the internet.”
+
+name:
+vpc_id:
+___________________________-
+route table
+A route table defines where the traffic from the subnet should go.
+
+Public subnet → route 0.0.0.0/0 → IGW
+
+Private subnet → route 0.0.0.0/0 → NAT Gateway
+
+name:
+vpc_id:
+route:
+   cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id------for public route table-----route to public subnet
+__________
+----route table association----route table attch to subnet---so it route traffic to that subnet
+Route table doesn’t “send traffic to subnet”, it tells the subnet how to send traffic out.
+
+name:
+subnet_id:
+route table_id:
+
+______________________________
+NAt gateway:Allow instances in private subnets to access the internet (for updates, API calls, etc.) without exposing them to inbound internet traffic.
+for creating NAT ----we require eip
+| Aspect         | Details                                                   |
+| -------------- | --------------------------------------------------------- |
+| **Placement**  | Must be in a **public subnet**                            |
+| **Elastic IP** | Required so private instances appear to have a public IP  |
+| **Routing**    | Private subnet’s route table → `0.0.0.0/0 → NAT Gateway`  |
+| **Security**   | Outbound only; inbound initiated from internet is blocked |
+
+
+  EIP:
+
+  resource "aws_eip" "nat" {
+  vpc = true
+}
+__________
+  NAT
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public.id
+
+    private subnet route_table                                                                   
+    route {
+  cidr_block     = "0.0.0.0/0"
+  nat_gateway_id = aws_nat_gateway.private_nat.id
+}
+
+structure be like this:                                                                      
+vpc_id:
+route: 
+
+  cidr
+  nat_gateway_id:
+ ____________________________
+  route table association
+  subnet_id
+  route_table_id
+___________________________
+sgs:
+resource "aws_security_group" "sg" {
+  name   = "sg-${var.env}"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"              #all protocals tcp,udp etc
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "sg-${var.env}" }
+}
+
+resource "aws_network_acl" "nacl" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = [aws_subnet.public.id, aws_subnet.private.id]
+
+  ingress {
+    rule_no     = 100
+    protocol    = "tcp"
+    rule_action = "allow"
+    cidr_block  = "0.0.0.0/0"
+    from_port   = 0
+    to_port     = 65535
+  }
+
+  egress {
+    rule_no     = 200
+    protocol    = "tcp"
+    rule_action = "allow"
+    cidr_block  = "0.0.0.0/0"
+    from_port   = 0
+    to_port     = 65535
+  }
+
+  tags = { Name = "nacl-${var.env}" }
+}
+                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+__________________________-
+Internet → IGW → Public Subnet (ALB/NLB) → Private Subnet (EKS Worker Nodes) → Pods → App/DB
+“When a client sends a request, it first hits the Internet Gateway of my VPC. The request is routed to a Load Balancer in the public subnet, which directs traffic to the EKS cluster running in private subnets.
+The worker nodes host the pods, and traffic flows through Kubernetes services to reach application containers.
+Any outbound internet traffic from pods goes through the NAT Gateway in the public subnet. Databases and internal services are hosted in private subnets for security.”
+
+if we use EKS:
+Client / Internet
+       ↓
+   Internet Gateway (IGW)
+       ↓
+       VPC (CIDR block)
+       ↓
+   ┌───────────────┐
+   │ Availability  │
+   │   Zone (AZ)   │
+   └───────────────┘
+       ↓
+   Subnets
+       ├─ Public Subnet
+       │     ↓
+       │   Load Balancer (ALB/NLB)  ← handles incoming traffic
+       │     ↓
+       │   NAT Gateway  ← for private subnet outbound (internet access)
+       │
+       └─ Private Subnet
+             ↓
+       EKS Worker Nodes (EC2 or Fargate)
+             ↓
+       Pods → Services → Application/DB
+__________________________________________________________
+
