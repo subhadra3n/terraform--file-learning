@@ -269,7 +269,7 @@ resource "aws_security_group" "sg" {
   egress {
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"
+    protocol    = "-1"              #all protocals tcp,udp etc
     cidr_blocks = ["0.0.0.0/0"]
   }
 
