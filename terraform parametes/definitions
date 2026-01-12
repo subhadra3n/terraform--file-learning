@@ -1,0 +1,40 @@
+1.what is loopback address?
+  Loopback address ia an special ip address used to test n/w interface in local m/s's
+  instead  of sending packets in physical n/w,
+  loopback address allo send & recive packets within same device.
+  _______________________________________________
+  2.what is region?
+  A region is a geographical area where AWS hosts its infrastructure.
+Each region contains multiple availability zones for high availability
+and fault tolerance.
+  __________________________________|
+  3.what is az?
+  AZ is a physical separate data centers within a region.
+  It provides high availability and fault tolerance
+  ______________________________________
+  4.What is vpc
+  VPC is a logically isolated virtual n/w in AWS, where we can launch & manage AWS resources securely.
+  ____________________
+  5.What is subnets
+  subnet is a logical subdivision of a vpc ip address range.
+  It allows us to deploy resources into specific Availability Zones to improve security
+and network control.
+  it has public & private subnets
+  6.what is public subnet?
+  
+A public subnet is a subnet that attached with a route table that routes traffic to an Internet Gateway,allowing direct internet access.
+
+  ______________
+  7.what is private subnet?
+  A private subnet is a subnet that does not have a direct route to the Internet Gateway.
+Resources in this subnet can access the internetonly through a NAT Gateway for outbound traffic.
+  ______________________________________________
+  8.what is igw?
+  An Internet Gateway is a VPC component that enables communication
+between VPC resources and the internet.
+  _____________________________________
+  9.what is route table?
+
+  _________________________________________
+  10.
+  
