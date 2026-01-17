@@ -1,0 +1,71 @@
+1.SG:
+resource "aws_security_group" "ec2_sg" {
+  name   = "ec2-sg"
+  vpc_id = var.vpc_id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["YOUR-IP/32"]   # replace with your IP
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+_________________________
+2.: Launch Template----------Same as ec2 creation terms ------dn't biheard differently
+resource "aws_launch_template" "web_lt" {
+  name_prefix   = "web-lt-"
+  image_id      = var.ami_id
+  instance_type = var.instance_type
+
+  network_interfaces {
+    associate_public_ip_address = false
+    security_groups = [aws_security_group.ec2_sg.id]
+  }
+
+  user_data = base64encode(<<EOF
+#!/bin/bash
+yum install -y httpd
+systemctl start httpd
+systemctl enable httpd
+echo "Hello from Auto Scaling" > /var/www/html/index.html
+EOF
+)
+}
+_________________________________________________________
+3.Auto Scaling Group (Creation)
+resource "aws_autoscaling_group" "web_asg" {
+  name                = "web-asg"
+  min_size            = 1
+  max_size            = 3
+  desired_capacity    = 2
+  vpc_zone_identifier = var.private_subnets
+
+  launch_template {
+    id      = aws_launch_template.web_lt.id
+    version = "$Latest"
+  }
+
+  health_check_type         = "EC2"
+  health_check_grace_period = 300
+
+  tag {
+    key                 = "Name"
+    value               = "autoscaling-instance"
+    propagate_at_launch = true
+  }
+}
+________________________________________________
