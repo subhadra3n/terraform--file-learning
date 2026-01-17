@@ -78,11 +78,63 @@ resource "aws_lb_listener" "http_listener" {
     target_group_arn = aws_lb_target_group.web_tg.arn
   }
 }
+______________________________________________________________
+5.Launch Template
+resource "aws_launch_template" "web_lt" {
+  name_prefix   = "web-lt-"
+  image_id      = var.ami_id
+  instance_type = var.instance_type
+
+  network_interfaces {
+    associate_public_ip_address = false
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+}
+
 
 ____________________________________
-5.Attach ASG TO Load balancer:
+6.Auto scaling creation:
+resource "aws_autoscaling_group" "web_asg" {
+  name                = "web-asg"
+  min_size            = 1
+  max_size            = 3
+  desired_capacity    = 2
+  vpc_zone_identifier = var.private_subnets
+
+  launch_template {
+    id      = aws_launch_template.web_lt.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "web-server"
+    propagate_at_launch = true
+  }
+}
+_______________________________________________________
+7.Auto Scaling Group (attached to ALB)
 
 resource "aws_autoscaling_attachment" "asg_attach" {
   autoscaling_group_name = aws_autoscaling_group.web_asg.name
   lb_target_group_arn    = aws_lb_target_group.web_tg.arn
 }
+____________________________________________________________
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
