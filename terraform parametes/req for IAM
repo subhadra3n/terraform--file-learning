@@ -1,1 +1,65 @@
+1.✔ Creates IAM user
+2.✔ Creates custom policy
+3.✔ Attaches policy to user
+4.✔ Creates IAM role for EC2
+5.✔ Allows EC2 to access S3
+
+1️⃣ Create IAM User
+resource "aws_iam_user" "dev_user" {
+  name = "dev-user"
+}
+______________________________________
+2️⃣ Create IAM Policy
+resource "aws_iam_policy" "s3_policy" {
+  name        = "S3FullAccessPolicy"
+  description = "Allows full access to S3"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "s3:*"
+        Resource = "*"
+      }
+    ]
+  })
+}
+__________________________________--
+3️⃣ Attach Policy to Userresource "aws_iam_user_policy_attachment" "attach_policy" {
+  user       = aws_iam_user.dev_user.name
+  policy_arn = aws_iam_policy.s3_policy.arn
+}
+________________________
+4️⃣ Create IAM Role (EC2 Example)
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+_____________________________-
+5️⃣ Attach Policy to Role
+resource "aws_iam_role_policy_attachment" "role_attach" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = aws_iam_policy.s3_policy.arn
+}
+___________________________________________
+6️⃣ Create Instance Profile (For EC2)
+
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "ec2-profile"
+  role = aws_iam_role.ec2_role.name
+}
+_________________________________________
 
