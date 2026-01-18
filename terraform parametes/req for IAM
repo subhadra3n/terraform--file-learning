@@ -12,11 +12,17 @@ We attach required policies to roles and use an instance profile to assign the r
 
 This ensures secure, scalable and manageable access control.
 _____________________________________________
-1.✔ Creates IAM user
-2.✔ Creates custom policy
-3.✔ Attaches policy to user
-4.✔ Creates IAM role for EC2
-5.✔ Allows EC2 to access S3
+1️⃣ Create IAM User
+2️⃣ Create IAM Policy
+3️⃣ Create IAM Group
+4️⃣ Attach policy to Group
+5️⃣ Add user to Group
+6️⃣ Create IAM Role
+7️⃣ Attach policy to Role
+8️⃣ Create Instance Profile
+9️⃣ Attach role to EC2
+________________________________________________________
+
 
 1️⃣ Create IAM User
 resource "aws_iam_user" "dev_user" {
