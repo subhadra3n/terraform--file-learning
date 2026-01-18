@@ -1,3 +1,7 @@
+IAM is a  AWS service used to create & manage users, groups, roles, and policies.
+It allows us to define authentication (who you are) and authorization (what you can do).
+Using IAM, we can assign secure and controlled permissions to AWS resources.
+_______________________________________________
 IAM:
 In IAM, we create users for human access.
 Then we define policies to specify permissions.
