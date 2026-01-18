@@ -1,4 +1,10 @@
-ALB 
+ALB :
+LB:
+A LB is a AWS Service that automatically distributes traffic accross multiple azs.
+To achive high availability,
+Fault tolerance & Horizontal scalability
+_________________________________________________________
+
 1.---Sg
 2--ALB
 3--Target Group
