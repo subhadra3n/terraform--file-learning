@@ -1,3 +1,6 @@
+
+
+
 | Reserved For | Example (10.0.1.0/24) |
 | ------------ | --------------------- |
 | Network addr | 10.0.1.0              |
@@ -44,7 +47,12 @@ terraform ec2 creation:
 6.security group_id
 7.key_pair
 8.ebs_volume
-_________________________________________________
+
+EC2:
+EC2 is an Elastic cloud computing
+it is an AWS Service that provides resizable virtual servers in the cloud.
+It allows users to launch and manage compute instances on demand.
+Based on workload , we can automatically scale instances using Auto Scaling, and it follows a pay-as-you-use pricing model
 vpc---------
 name:
 cidr:10.0.0.0/16----get 65 536 ips-(2^32 -16)--2^16
