@@ -1,3 +1,13 @@
+IAM:
+In IAM, we create users for human access.
+Then we define policies to specify permissions.
+Instead of attaching policies directly to users, we create groups and attach policies to groups — this follows AWS best practices.
+
+For AWS services like EC2, we create IAM roles with trust policies.
+We attach required policies to roles and use an instance profile to assign the role to EC2.
+
+This ensures secure, scalable and manageable access control.
+_____________________________________________
 1.✔ Creates IAM user
 2.✔ Creates custom policy
 3.✔ Attaches policy to user
