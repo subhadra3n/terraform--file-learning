@@ -1,0 +1,67 @@
+S3 – Production Ready:
+resource "aws_s3_bucket" "prod_bucket" {
+  bucket = "prod-app-data-12345"   # Must be globally unique
+
+  tags = {
+    Name        = "prod-s3-bucket"
+    Environment = "prod"
+    Owner       = "cloud-team"
+  }
+}
+______________________________________
+Enable Versioning:
+
+resource "aws_s3_bucket_versioning" "versioning" {
+  bucket = aws_s3_bucket.prod_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+__________________________________________
+Enable Encryption:
+resource "aws_s3_bucket_server_side_encryption_configuration" "encryption" {
+  bucket = aws_s3_bucket.prod_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+______________________________________
+Block Public Access:
+resource "aws_s3_bucket_public_access_block" "block_public" {
+  bucket = aws_s3_bucket.prod_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+_________________________________
+Enable Access Logging:
+resource "aws_s3_bucket" "log_bucket" {
+  bucket = "prod-s3-access-logs-12345"
+}
+
+resource "aws_s3_bucket_logging" "logging" {
+  bucket        = aws_s3_bucket.prod_bucket.id
+  target_bucket = aws_s3_bucket.log_bucket.id
+  target_prefix = "logs/"
+}
+_______________________________________
+Lifecycle Rules:
+resource "aws_s3_bucket_lifecycle_configuration" "lifecycle" {
+  bucket = aws_s3_bucket.prod_bucket.id
+
+  rule {
+    id     = "log-cleanup"
+    status = "Enabled"
+
+    expiration {
+      days = 365
+    }
+  }
+}
+__________________________________________
