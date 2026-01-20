@@ -1,4 +1,8 @@
-S3 – Production Ready:
+S3:
+Amazon S3 is an AWS service that acts as an object storage service.
+It is used to store and retrieve objects such as files, images, and backups in a highly scalable and secure way.
+______________________________________________________________
+______S3 – Production Ready:
 resource "aws_s3_bucket" "prod_bucket" {
   bucket = "prod-app-data-12345"   # Must be globally unique
 
