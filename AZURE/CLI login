@@ -1,0 +1,59 @@
+
+_______________________--
+in aws-------aws configure
+AWS Access Key ID:
+AWS Secret Access Key:
+Default region name:
+Default output format:
+_______________________________-
+in Azure:
+az login
+
+____________________________________-------
+
+Subscription
+└── Azure Resource Manager (control plane)
+    └── Resource Group
+        ├── Virtual Network (VNet)
+        │   ├── Public Subnet
+        │   │   ├── NSG (Inbound Internet allowed)
+        │   │   ├── UDR (0.0.0.0/0 → Internet)
+        │   │   ├── Azure Bastion / App Gateway
+        │   │   └── Public IP
+        │   │
+        │   └── Private Subnet
+        │       ├── NSG (No Internet inbound)                 #NSG → allow / deny traffic-----N/w security groups
+
+                                                              #UDR → where traffic goes-----User defined routes
+        │       ├── UDR (0.0.0.0/0 → NAT / Firewall)
+        │       ├── NIC
+        │       │   └── Virtual Machine
+        │       │
+        │       └── Private Endpoint
+        │           └── Storage Account
+        │
+        ├── Network Security Groups (logical)
+        ├── Route Tables (UDR)
+        ├── Storage Account
+        │   └── Blob Container (Terraform State)
+        │
+        └── Monitoring & Security
+            ├── Azure Monitor
+            ├── Log Analytics
+            └── Defender for Cloud
+            ___________________________________________-
+            1️⃣ Security (biggest reason)
+
+Private subnet has no direct Internet route
+
+NIC gets only a private IP
+
+VM cannot be reached directly from Internet
+__________________________
+What actually decides Public vs Private subnet?
+
+A subnet is considered PUBLIC or PRIVATE based on three things:
+
+1️⃣ Route to Internet (UDR / system routes)
+2️⃣ Presence of Public IPs on NICs
+3️⃣ NSG rules
