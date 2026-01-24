@@ -1,0 +1,68 @@
+Azure Terraform – Public Load Balancer
+1️⃣ Public IP for LB
+resource "azurerm_public_ip" "lb_public_ip" {
+  name                = "lb-public-ip"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+______________________________________
+2️⃣ Load Balancer
+resource "azurerm_lb" "lb" {
+  name                = "demo-lb"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "Standard"
+  frontend_ip_configuration {
+    name                 = "LB-Frontend"
+    public_ip_address_id = azurerm_public_ip.lb_public_ip.id
+  }
+}
+
+_________________________________________
+3️⃣ Backend Pool (VMs)
+resource "azurerm_lb_backend_address_pool" "lb_backend" {
+  name                = "lb-backend-pool"
+  loadbalancer_id     = azurerm_lb.lb.id
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+_______________________________
+4️⃣ Health Probe
+resource "azurerm_lb_probe" "http_probe" {
+  name                = "http-probe"
+  resource_group_name = azurerm_resource_group.rg.name
+  loadbalancer_id     = azurerm_lb.lb.id
+  protocol            = "Http"
+  port                = 80
+  request_path        = "/"
+  interval_in_seconds = 5
+  number_of_probes    = 2
+}
+
+_____________________________
+5️⃣ Load Balancing Rule
+resource "azurerm_lb_rule" "http_rule" {
+  name                           = "http-rule"
+  resource_group_name            = azurerm_resource_group.rg.name
+  loadbalancer_id                = azurerm_lb.lb.id
+  protocol                       = "Tcp"
+  frontend_port                  = 80
+  backend_port                   = 80
+  frontend_ip_configuration_name = "LB-Frontend"
+  backend_address_pool_id        = azurerm_lb_backend_address_pool.lb_backend.id
+  probe_id                       = azurerm_lb_probe.http_probe.id
+  idle_timeout_in_minutes        = 4
+  enable_floating_ip             = false
+}
+
+________________________________________________________
+6️⃣ Associate VMs with Backend Pool
+resource "azurerm_network_interface_backend_address_pool_association" "vm_lb_assoc" {
+  network_interface_id    = azurerm_network_interface.nic.id
+  ip_configuration_name   = "internal"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.lb_backend.id
+}
+_____________________________________
+Net → Subnets → NAT → NSG → VMs → Public LB → AutoScale
