@@ -1,0 +1,80 @@
+Azure: Virtual Machine (VM)
+Terraform – Azure VM needs:
+
+name
+
+location (Azure doesn’t use AZ explicitly like AWS)
+
+resource_group_name
+
+vm_size (instance_type)
+
+image_reference
+
+publisher
+
+offer
+
+sku
+
+version
+
+network_interface_id
+
+os_disk
+
+admin_username
+
+ssh_key / password
+
+identity (Managed Identity – IAM equivalent)
+__________________________________________________________
+A VNet is a logically isolated network in Azure that enables secure communication between Azure resources, 
+the internet, and on-premises networks.
+2.Azure: Virtual Network (VNet)
+name:
+address_space: 10.0.0.0/16   → 65,536 IPs (2^16)
+location:
+resource_group_name:
+dns_servers: (optional)
+_____________________________________________________
+3️⃣ Subnet
+name:
+address_prefixes: 10.0.1.0/24 → 256 IPs (2^8)
+vnet_name:
+resource_group_name:
+_____________________
+4️⃣ Internet Gateway (AWS) → Internet via Azure system route
+
+❌ Azure does NOT have an Internet Gateway resource.
+_______________________|
+5️⃣ Route Table
+Azure: User Defined Route (UDR)
+name:
+resource_group_name:
+location:
+route:
+  address_prefix = "0.0.0.0/0"
+  next_hop_type  = "Internet" | "VirtualAppliance"
+_________________________|
+6️⃣ Route Table Association
+Azure: Subnet → Route Table Association
+subnet_id:
+route_table_id:
+__________________________
+| AWS                     | Azure              |
+| ----------------------- | ------------------ |
+| EC2                     | Virtual Machine    |
+| AMI                     | Image Reference    |
+| Instance Type           | VM Size            |
+| VPC                     | VNet               |
+| Subnet                  | Subnet             |
+| IGW                     | System Route       |
+| Route Table             | UDR                |
+| Route Table Association | Subnet Association |
+| NAT Gateway             | NAT Gateway        |
+| Elastic IP              | Public IP          |
+| Security Group          | NSG                |
+| NACL                    | ❌ Not present      |
+
+Azure does not use an IGW. Internet connectivity is handled via system routes and public IP associations.
