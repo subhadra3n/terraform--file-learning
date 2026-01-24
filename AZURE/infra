@@ -1,0 +1,204 @@
+Azure Terraform – End-to-End Infra (AWS-style mapping)
+Resources we’ll create
+
+Resource Group
+
+VNet
+
+Public Subnet
+
+Private Subnet
+
+Route Tables (Public + Private)
+
+NAT Gateway
+
+Public IP
+
+NSG
+
+Linux VM (EC2 equivalent)
+_______________________________________________________|
+1️⃣ Provider
+provider "azurerm" {
+  features {}
+}
+________________________
+2️⃣ Resource Group
+resource "azurerm_resource_group" "rg" {
+  name     = "rg-demo"
+  location = "East US"
+}
+_____________________________
+3️⃣ VNet (AWS VPC)
+resource "azurerm_virtual_network" "vnet" {
+  name                = "vnet-demo"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+______________________________________________________
+4️⃣ Subnets
+Public Subnet
+resource "azurerm_subnet" "public" {
+  name                 = "public-subnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+______________________________________________________
+Private Subnet
+resource "azurerm_subnet" "private" {
+  name                 = "private-subnet"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+_____________________________________
+5️⃣ Public IP (AWS EIP)
+resource "azurerm_public_ip" "nat_ip" {
+  name                = "nat-public-ip"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+____________________________________________________
+6️⃣ NAT Gateway
+resource "azurerm_nat_gateway" "nat" {
+  name                = "nat-gateway"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku_name            = "Standard"
+}
+______________________________________________________
+Attach Public IP to NAT
+resource "azurerm_nat_gateway_public_ip_association" "nat_ip_assoc" {
+  nat_gateway_id       = azurerm_nat_gateway.nat.id
+  public_ip_address_id = azurerm_public_ip.nat_ip.id
+}
+_____________________________________________________________
+Attach NAT to Private Subnet
+resource "azurerm_subnet_nat_gateway_association" "private_nat" {
+  subnet_id      = azurerm_subnet.private.id
+  nat_gateway_id = azurerm_nat_gateway.nat.id
+}
+_______________________________________
+7️⃣ Route Tables (UDR)----------Public Route Table
+resource "azurerm_route_table" "public_rt" {
+  name                = "public-rt"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  route {
+    name           = "internet-route"
+    address_prefix = "0.0.0.0/0"
+    next_hop_type  = "Internet"
+  }
+}
+___________________________________________
+Private Route Table
+resource "azurerm_route_table" "private_rt" {
+  name                = "private-rt"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  route {
+    name           = "nat-route"
+    address_prefix = "0.0.0.0/0"
+    next_hop_type  = "NatGateway"
+  }
+}
+____________________________________________
+8️⃣ Route Table Association
+resource "azurerm_subnet_route_table_association" "public_assoc" {
+  subnet_id      = azurerm_subnet.public.id
+  route_table_id = azurerm_route_table.public_rt.id
+}
+
+resource "azurerm_subnet_route_table_association" "private_assoc" {
+  subnet_id      = azurerm_subnet.private.id
+  route_table_id = azurerm_route_table.private_rt.id
+}
+____________________________________________
+9️⃣ Network Security Group (AWS SG)
+resource "azurerm_network_security_group" "nsg" {
+  name                = "vm-nsg"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  security_rule {
+    name                       = "SSH"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "HTTP"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+________________________________
+🔟 Network Interface
+resource "azurerm_network_interface" "nic" {
+  name                = "vm-nic"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.public.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+__________________________________________________
+Attach NSG to NIC
+resource "azurerm_network_interface_security_group_association" "nic_nsg" {
+  network_interface_id      = azurerm_network_interface.nic.id
+  network_security_group_id = azurerm_network_security_group.nsg.id
+}
+_________________________________
+1️⃣1️⃣ Virtual Machine (EC2 equivalent)
+resource "azurerm_linux_virtual_machine" "vm" {
+  name                = "demo-vm"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  size                = "Standard_B2s"
+  admin_username      = "azureuser"
+  network_interface_ids = [
+    azurerm_network_interface.nic.id
+  ]
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = file("~/.ssh/id_rsa.pub")
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+}
+
+________________________________|
+___________________________________________________________
