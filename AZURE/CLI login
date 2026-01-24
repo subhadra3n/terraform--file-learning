@@ -8,6 +8,14 @@ Default output format:
 _______________________________-
 in Azure:
 az login
+| AWS                 | Azure                             |
+| ------------------- | --------------------------------- |
+| `aws configure`     | `az login`                        |
+| Access Key + Secret | Azure AD identity                 |
+| IAM User            | Azure AD User / Service Principal |
+| Profile-based       | Subscription-based                |
+| Static credentials  | Token-based auth                  |
+
 
 ____________________________________-------
 
