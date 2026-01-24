@@ -1,0 +1,143 @@
+Azure Auto Scaling Overview
+
+In Azure, Virtual Machine Scale Sets (VMSS) provide auto-scaling for VMs.
+______________________
+VMSS defines a set of identical VMs.
+
+Integrates with Load Balancer to distribute traffic.
+
+Can scale out/in based on:
+
+CPU / Memory usage
+
+Number of requests (via LB metrics)
+
+Custom metrics
+_______________________________
+1️⃣ VM Scale Set
+resource "azurerm_linux_virtual_machine_scale_set" "vmss" {
+  name                = "demo-vmss"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  sku                 = "Standard_B2s"
+  instances           = 2   # initial count
+  admin_username      = "azureuser"
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  network_interface {
+    name                                   = "vmss-nic"
+    primary                                = true
+    ip_configuration {
+      name                                   = "ipconfig"
+      subnet_id                              = azurerm_subnet.private.id
+      primary                                = true
+      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.lb_backend.id]
+    }
+  }
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = file("~/.ssh/id_rsa.pub")
+  }
+
+  health_probe_id = azurerm_lb_probe.http_probe.id
+
+  upgrade_mode = "Manual"
+}
+____________________________________________
+2️⃣ Autoscale Settings
+resource "azurerm_monitor_autoscale_setting" "autoscale" {
+  name                = "vmss-autoscale"
+  resource_group_name = azurerm_resource_group.rg.name
+  target_resource_id  = azurerm_linux_virtual_machine_scale_set.vmss.id
+  location            = azurerm_resource_group.rg.location
+
+  profile {
+    name = "autoscale-cpu"
+    capacity {
+      default = 2
+      minimum = 1
+      maximum = 5
+    }
+
+    rule {
+      metric_trigger {
+        metric_name        = "Percentage CPU"
+        metric_resource_id = azurerm_linux_virtual_machine_scale_set.vmss.id
+        time_grain         = "PT1M"
+        statistic          = "Average"
+        time_window        = "PT5M"
+        time_aggregation   = "Average"
+        operator           = "GreaterThan"
+        threshold          = 70
+      }
+
+      scale_action {
+        direction = "Increase"
+        type      = "ChangeCount"
+        value     = 1
+        cooldown  = "PT5M"
+      }
+    }
+
+    rule {
+      metric_trigger {
+        metric_name        = "Percentage CPU"
+        metric_resource_id = azurerm_linux_virtual_machine_scale_set.vmss.id
+        time_grain         = "PT1M"
+        statistic          = "Average"
+        time_window        = "PT5M"
+        time_aggregation   = "Average"
+        operator           = "LessThan"
+        threshold          = 30
+      }
+
+      scale_action {
+        direction = "Decrease"
+        type      = "ChangeCount"
+        value     = 1
+        cooldown  = "PT5M"
+      }
+    }
+  }
+}
+___________________________
+Explanation (Interview-ready)
+
+VMSS: A group of identical VMs that automatically integrates with LB backend pool.
+
+Health Probe: Ensures traffic only goes to healthy VMs.
+
+Autoscale Setting:
+
+Default = 2 VMs
+
+Min = 1, Max = 5
+
+Scale out if CPU > 70%
+
+Scale in if CPU < 30%
+
+Benefits:
+
+Horizontal scaling (adds/removes VMs)
+
+Seamless integration with Load Balancer
+
+Pay-as-you-use, cost optimized
+_________________________
+Internet → LB Public IP → LB Rule → VMSS Backend Pool → VMs
+                                     ↑
+                            Autoscale monitors CPU
+                            and adjusts VM count
