@@ -1,0 +1,100 @@
+1️⃣ Provider & Resource Group
+provider "azurerm" {
+  features {}
+}
+
+resource "azurerm_resource_group" "rg" {
+  name     = "rg-appservice-demo"
+  location = "East US"
+}
+
+2️⃣ App Service Plan
+
+Explanation: An App Service Plan defines compute resources for your Web App.
+
+resource "azurerm_app_service_plan" "plan" {
+  name                = "appservice-plan-demo"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  sku {
+    tier = "Standard"       # Can be Free, Basic, Standard, Premium, PremiumV2, PremiumV3
+    size = "S1"             # Size of the plan
+  }
+
+  kind = "App"
+}
+
+
+Interview points:
+
+Always mention SKU tiers and why you choose them
+
+“Standard” is minimum for production scaling
+
+3️⃣ App Service (Web App)
+resource "azurerm_app_service" "webapp" {
+  name                = "webapp-demo-123"  # Must be globally unique
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  app_service_plan_id = azurerm_app_service_plan.plan.id
+
+  https_only = true   # Force HTTPS for security
+
+  site_config {
+    always_on = true       # Keep app always running
+    ftps_state = "FtpsOnly" # Secure file transfer
+  }
+
+  app_settings = {
+    "ENVIRONMENT" = "dev"
+    "APP_VERSION" = "1.0.0"
+  }
+}
+
+
+Interview points to mention:
+
+https_only = true for secure traffic
+
+always_on = true for production apps
+
+app_settings for environment configs
+
+App Service name must be globally unique
+
+4️⃣ Optional: Deployment Slot (for CI/CD)
+resource "azurerm_app_service_slot" "staging" {
+  name                = "staging"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  app_service_name    = azurerm_app_service.webapp.name
+
+  app_settings = {
+    "ENVIRONMENT" = "staging"
+  }
+}
+
+
+Interview tip:
+
+Deployment slots allow zero-downtime deployments
+
+Mention it if interviewer asks about CI/CD best practices
+
+5️⃣ Output Web App URL
+output "webapp_url" {
+  value = azurerm_app_service.webapp.default_site_hostname
+}
+
+🔹 Interview Talking Points
+
+App Service Plan = compute tier & SKU
+
+App Service = Web App running in the plan
+
+HTTPS only, FTPS, Always On = production-ready
+
+Slots = staging / production deployments
+
+Can integrate with Private Endpoint, Key Vault, Managed Identity
