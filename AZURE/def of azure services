@@ -1,0 +1,38 @@
+| Component / Service                      | What It Is                                            | Why We Use It / Purpose                                                                                |
+| ---------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **AKS Cluster**                          | Managed Kubernetes cluster in Azure                   | Host containerized applications without managing master nodes. Azure handles control plane management. |
+| **Node Pool**                            | Set of VM nodes for workloads                         | Runs pods. Allows scaling, different VM sizes, and OS types (Linux/Windows).                           |
+| **Control Plane**                        | Kubernetes master nodes (API server, scheduler, etcd) | Azure manages this for HA and maintenance. You don’t pay for or manage it directly.                    |
+| **Pods**                                 | Smallest deployable units in Kubernetes               | Encapsulates one or more containers. Runs your application workloads.                                  |
+| **Services (Kubernetes Service)**        | Exposes pods to other pods or external traffic        | Provides stable endpoints, load balancing, and service discovery for pods.                             |
+| **Ingress Controller**                   | Kubernetes resource for HTTP/S routing                | Allows external access to multiple services via single load balancer with rules.                       |
+| **Azure Load Balancer**                  | Layer 4 load balancer                                 | Distributes traffic to pods via services of type LoadBalancer.                                         |
+| **Azure Monitor / Log Analytics**        | Monitoring & logging service                          | Observability: track metrics, logs, alerts, and diagnose issues in AKS.                                |
+| **Azure Container Registry (ACR)**       | Private container image registry                      | Store Docker/OCI images for deployment to AKS securely.                                                |
+| **Helm (Package Manager)**               | Kubernetes package manager                            | Deploy complex apps on AKS quickly using charts.                                                       |
+| **RBAC (Role-Based Access Control)**     | Kubernetes authorization                              | Controls who can perform actions on AKS resources.                                                     |
+| **Managed Identity**                     | Azure identity assigned to cluster                    | Allows AKS to access Azure resources (Key Vault, Storage) without secrets.                             |
+| **Persistent Volumes (PV) / PVC**        | Storage resources for containers                      | Provide persistent storage to pods for databases, logs, or files.                                      |
+| **Network Plugin (Azure CNI / Kubenet)** | Networking model for pods                             | Provides pod-to-pod and pod-to-VNet communication.                                                     |
+| **Private Cluster / Private Endpoint**   | Private API server access                             | Restrict control plane access to VNet; enhances security.                                              |
+| **Horizontal Pod Autoscaler (HPA)**      | Auto-scales pods                                      | Automatically scales workloads based on CPU, memory, or custom metrics.                                |
+______________________________________________________________________
+
+  | Service / Component                                        | Definition                                                                                                                                                 |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AKS Cluster**                                            | A fully managed Kubernetes cluster in Azure, which abstracts the control plane (master nodes) so you can focus on deploying applications.                  |
+| **Node Pool**                                              | A group of VMs in AKS that run containerized workloads (pods). Node pools allow scaling, multiple VM sizes, and OS types (Linux/Windows).                  |
+| **Control Plane**                                          | The Kubernetes master nodes (API server, scheduler, etcd) that manage the cluster state and orchestrate workloads. In AKS, this is fully managed by Azure. |
+| **Pod**                                                    | The smallest deployable unit in Kubernetes, which encapsulates one or more containers with shared networking and storage.                                  |
+| **Kubernetes Service**                                     | A stable endpoint that exposes pods internally (ClusterIP) or externally (NodePort / LoadBalancer) for network access and load balancing.                  |
+| **Ingress Controller**                                     | A Kubernetes resource that manages HTTP/S routing to multiple services, often using a single external IP.                                                  |
+| **Azure Load Balancer**                                    | A Layer-4 (TCP/UDP) load balancer that distributes traffic to Kubernetes nodes and services.                                                               |
+| **Azure Monitor / Log Analytics**                          | Observability services that collect metrics, logs, and alerts for monitoring AKS clusters and applications.                                                |
+| **Azure Container Registry (ACR)**                         | A private registry for storing Docker/OCI container images to deploy to AKS securely.                                                                      |
+| **Helm**                                                   | A package manager for Kubernetes, allowing you to deploy complex applications via charts.                                                                  |
+| **RBAC (Role-Based Access Control)**                       | A Kubernetes mechanism for controlling permissions of users, groups, and service accounts within the cluster.                                              |
+| **Managed Identity**                                       | Azure identity automatically assigned to AKS to securely access other Azure resources without storing credentials.                                         |
+| **Persistent Volume (PV) / Persistent Volume Claim (PVC)** | Kubernetes resources that provide persistent storage to pods for stateful workloads.                                                                       |
+| **Network Plugin (Azure CNI / Kubenet)**                   | Networking models in AKS that define how pods communicate with each other and with the VNet.                                                               |
+| **Private Cluster / Private Endpoint**                     | An AKS configuration where the Kubernetes API server is accessible only from within the VNet, enhancing security.                                          |
+| **Horizontal Pod Autoscaler (HPA)**                        | Kubernetes feature that automatically scales pods based on CPU, memory, or custom metrics to handle varying workloads.                                     |
