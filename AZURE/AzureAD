@@ -1,0 +1,87 @@
+1️⃣ Provider
+provider "azuread" {
+  tenant_id = "<YOUR_TENANT_ID>"
+}
+
+2️⃣ Create a User
+resource "azuread_user" "user1" {
+  user_principal_name = "john.doe@yourdomain.com"
+  display_name        = "John Doe"
+  mail_nickname       = "johndoe"
+  password            = "P@ssw0rd123!"  # For Terraform demo only; production should use secure methods
+  force_password_change = true
+}
+
+
+Interview points to mention:
+
+user_principal_name must match your domain
+
+force_password_change improves security
+
+Passwords shouldn’t be in code in production; use Key Vault
+
+3️⃣ Create a Group
+resource "azuread_group" "dev_group" {
+  display_name     = "DevTeam"
+  mail_nickname    = "devteam"
+  security_enabled = true
+}
+
+
+Usage: Assign users to groups to simplify RBAC.
+
+Add user to group
+resource "azuread_group_member" "user_in_group" {
+  group_object_id  = azuread_group.dev_group.id
+  member_object_id = azuread_user.user1.id
+}
+
+4️⃣ App Registration (Service Principal)
+resource "azuread_application" "app" {
+  display_name = "my-app"
+  owners       = [azuread_user.user1.object_id]
+}
+
+resource "azuread_service_principal" "sp" {
+  application_id = azuread_application.app.application_id
+}
+
+resource "azuread_service_principal_password" "sp_pass" {
+  service_principal_id = azuread_service_principal.sp.id
+  value                = "P@ssw0rd123!"
+  end_date             = "2030-01-01T00:00:00Z"
+}
+
+
+Interview points:
+
+App Registration = identity definition
+
+Service Principal = identity instance for your tenant
+
+Password or certificate can be used, but Managed Identity is preferred for Azure services
+
+5️⃣ Assign Azure Role (RBAC) to a SP
+resource "azurerm_role_assignment" "sp_role" {
+  scope                = azurerm_resource_group.rg.id
+  role_definition_name = "Contributor"
+  principal_id         = azuread_service_principal.sp.id
+}
+
+
+Interview points:
+
+RBAC scopes can be subscription, resource group, or resource level
+
+Least privilege principle should be followed
+
+6️⃣ Optional: Assign User to Role (PIM alternative)
+
+Terraform cannot manage PIM directly, but you can assign permanent roles:
+
+resource "azurerm_role_assignment" "user_role" {
+  scope                = azurerm_resource_group.rg.id
+  role_definition_name = "Reader"
+  principal_id         = azuread_user.user1.object_id
+}
