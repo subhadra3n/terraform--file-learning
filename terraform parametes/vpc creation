@@ -1,0 +1,124 @@
+1️⃣ Provider
+provider "aws" {
+  region = "ap-south-1"
+}
+
+2️⃣ VPC
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "main-vpc"
+  }
+}
+
+3️⃣ Internet Gateway (IGW)
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "main-igw"
+  }
+}
+
+4️⃣ Public Subnet
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "ap-south-1a"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "public-subnet"
+  }
+}
+
+5️⃣ Public Route Table
+resource "aws_route_table" "public_rt" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+
+  tags = {
+    Name = "public-rt"
+  }
+}
+
+6️⃣ Associate Public Route Table
+resource "aws_route_table_association" "public_assoc" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+
+👉 Interview line:
+“A subnet becomes public only when its route table points to an Internet Gateway.”
+
+7️⃣ Elastic IP (for NAT Gateway)
+resource "aws_eip" "nat_eip" {
+  domain = "vpc"
+
+  tags = {
+    Name = "nat-eip"
+  }
+}
+
+8️⃣ NAT Gateway (must be in public subnet)
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id     = aws_subnet.public.id
+
+  tags = {
+    Name = "nat-gateway"
+  }
+}
+
+
+👉 Key point: NAT Gateway must be in a public subnet and must have an EIP.
+
+9️⃣ Private Subnet
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "ap-south-1a"
+
+  tags = {
+    Name = "private-subnet"
+  }
+}
+
+🔟 Private Route Table (via NAT)
+resource "aws_route_table" "private_rt" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat.id
+  }
+
+  tags = {
+    Name = "private-rt"
+  }
+}
+
+1️⃣1️⃣ Associate Private Route Table
+resource "aws_route_table_association" "private_assoc" {
+  subnet_id      = aws_subnet.private.id
+  route_table_id = aws_route_table.private_rt.id
+}
+
+Traffic flow (say this confidently)
+Public subnet
+EC2 → IGW → Internet
+
+Private subnet
+EC2 → NAT Gateway → IGW → Internet
+
+
+Inbound internet traffic:
+❌ Blocked for private subnet
