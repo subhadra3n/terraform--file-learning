@@ -1,0 +1,118 @@
+1️⃣ Provider + Variables
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+variable "project_id" { type = string }
+variable "region"     { type = string  default = "asia-south1" }
+2️⃣ Create a Service Account (SA)
+resource "google_service_account" "app_sa" {
+  account_id   = "app-sa"
+  display_name = "App Service Account"
+}
+3️⃣ Grant Roles to the Service Account (Recommended: member style)
+
+Best when multiple roles are needed for one identity.
+
+resource "google_project_iam_member" "app_sa_logging" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.app_sa.email}"
+}
+
+resource "google_project_iam_member" "app_sa_monitoring" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.app_sa.email}"
+}
+4️⃣ Grant a Role to a Google User
+resource "google_project_iam_member" "user_viewer" {
+  project = var.project_id
+  role    = "roles/viewer"
+  member  = "user:someone@company.com"
+}
+5️⃣ Grant Role to a Group (Common in enterprises)
+resource "google_project_iam_member" "group_sre_admin" {
+  project = var.project_id
+  role    = "roles/compute.admin"
+  member  = "group:sre-team@company.com"
+}
+6️⃣ IAM Binding (Sets members for ONE role)
+
+Use when you want to manage the full list for a role in Terraform (be careful: it replaces members for that role).
+
+resource "google_project_iam_binding" "logging_admins" {
+  project = var.project_id
+  role    = "roles/logging.admin"
+
+  members = [
+    "user:lead@company.com",
+    "group:platform-team@company.com",
+  ]
+}
+7️⃣ IAM Policy (Replaces entire project IAM) — Usually avoid
+# DANGEROUS in shared projects. Only use if you fully manage IAM in Terraform.
+data "google_iam_policy" "policy" {
+  binding {
+    role = "roles/viewer"
+    members = ["user:someone@company.com"]
+  }
+}
+
+resource "google_project_iam_policy" "project_policy" {
+  project     = var.project_id
+  policy_data = data.google_iam_policy.policy.policy_data
+}
+8️⃣ Create a Custom Role (Project level)
+resource "google_project_iam_custom_role" "custom_sre_role" {
+  project     = var.project_id
+  role_id     = "customSreReadOnly"
+  title       = "Custom SRE Read Only"
+  description = "Read-only access for SRE troubleshooting"
+  stage       = "GA"
+
+  permissions = [
+    "compute.instances.get",
+    "compute.instances.list",
+    "logging.logEntries.list",
+    "monitoring.timeSeries.list",
+    "monitoring.dashboards.get",
+  ]
+}
+
+resource "google_project_iam_member" "assign_custom_role" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.custom_sre_role.name
+  member  = "group:sre-team@company.com"
+}
+9️⃣ (SRE-Useful) Allow a VM to Use a Service Account (Attach SA to VM)
+resource "google_compute_instance" "vm" {
+  name         = "app-vm"
+  machine_type = "e2-medium"
+  zone         = "asia-south1-a"
+
+  boot_disk {
+    initialize_params { image = "debian-cloud/debian-12" }
+  }
+
+  network_interface {
+    # fill your subnet here
+    network = "default"
+    access_config {}
+  }
+
+  service_account {
+    email  = google_service_account.app_sa.email
+    scopes = ["cloud-platform"]
+  }
+}
