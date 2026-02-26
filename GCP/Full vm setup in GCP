@@ -1,0 +1,239 @@
+1️⃣ Provider
+provider "google" {
+  project = "your-project-id"
+  region  = "asia-south1"
+  zone    = "asia-south1-a"
+}
+___________________________
+2️⃣ VPC (AWS VPC / Azure VNet Equivalent)
+resource "google_compute_network" "vpc" {
+  name                    = "vpc-demo"
+  auto_create_subnetworks = false
+}
+________________________________
+3️⃣ Subnets
+Public Subnet
+resource "google_compute_subnetwork" "public" {
+  name          = "public-subnet"
+  ip_cidr_range = "10.0.1.0/24"
+  region        = "asia-south1"
+  network       = google_compute_network.vpc.id
+}
+___________________________________
+Private Subnet
+resource "google_compute_subnetwork" "private" {
+  name                     = "private-subnet"
+  ip_cidr_range            = "10.0.2.0/24"
+  region                   = "asia-south1"
+  network                  = google_compute_network.vpc.id
+  private_ip_google_access = true
+}
+___________________________________________
+4️⃣ Cloud Router (Required for NAT)
+resource "google_compute_router" "router" {
+  name    = "nat-router"
+  region  = "asia-south1"
+  network = google_compute_network.vpc.id
+}
+_______________________________________
+5️⃣ Cloud NAT (Azure NAT Gateway Equivalent)
+resource "google_compute_router_nat" "nat" {
+  name                               = "cloud-nat"
+  router                             = google_compute_router.router.name
+  region                             = "asia-south1"
+  nat_ip_allocate_option              = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat  = "LIST_OF_SUBNETWORKS"
+
+  subnetwork {
+    name                    = google_compute_subnetwork.private.name
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+}
+____________________________________________
+In GCP, you don’t manually attach Public IP to NAT like Azure.
+Cloud NAT automatically manages external IPs.
+_____________________________
+6️⃣ Firewall Rules (AWS SG / Azure NSG Equivalent)
+Allow SSH
+resource "google_compute_firewall" "allow_ssh" {
+  name    = "allow-ssh"
+  network = google_compute_network.vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["vm-tag"]
+}
+______________________________
+Allow HTTP
+resource "google_compute_firewall" "allow_http" {
+  name    = "allow-http"
+  network = google_compute_network.vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["vm-tag"]
+}
+_______________________________
+7️⃣ Public VM (Equivalent to EC2 / Azure VM)
+resource "google_compute_instance" "public_vm" {
+  name         = "public-vm"
+  machine_type = "e2-medium"
+  zone         = "asia-south1-a"
+
+  tags = ["vm-tag"]
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-12"
+    }
+  }
+
+  network_interface {
+    subnetwork = google_compute_subnetwork.public.id
+
+    # Public IP
+    access_config {}
+  }
+
+  metadata = {
+    ssh-keys = "gcpuser:${file("~/.ssh/id_rsa.pub")}"
+  }
+}
+_______________________________________________
+8️⃣ Private VM (No Public IP – Uses NAT)
+resource "google_compute_instance" "private_vm" {
+  name         = "private-vm"
+  machine_type = "e2-medium"
+  zone         = "asia-south1-a"
+
+  tags = ["vm-tag"]
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-12"
+    }
+  }
+
+  network_interface {
+    subnetwork = google_compute_subnetwork.private.id
+    # ❌ No access_config → No Public IP
+  }
+}
+_________________________
+9️⃣ Outputs
+output "public_vm_ip" {
+  value = google_compute_instance.public_vm.network_interface[0].access_config[0].nat_ip
+}
+_________________________________
+| Azure              | AWS            | GCP                                                        |
+| ------------------ | -------------- | ---------------------------------------------------------- |
+| NAT Gateway        | NAT Gateway    | Cloud NAT                                                  |
+| NSG                | Security Group | Firewall Rule                                              |
+| Route Tables       | Route Tables   | Routes auto-managed (0.0.0.0 via default internet gateway) |
+| Public IP Resource | Elastic IP     | access_config {}                                           |
+_________________________________________
+| Azure          | AWS              | GCP                                |
+| -------------- | ---------------- | ---------------------------------- |
+| Tenant         | AWS Organization | Organization                       |
+| Subscription   | AWS Account      | Project                            |
+| Resource Group | N/A              | (Project itself acts as container) |
+| VNet           | VPC              | VPC                                |
+| NSG            | Security Group   | Firewall Rule                      |
+| NAT Gateway    | NAT Gateway      | Cloud NAT                          |
+_____________
+hireachy structure:
+Detailed Explanation (Interview Ready)
+1️⃣ Organization (Equivalent to Azure Tenant)
+
+Top-level container
+
+Represents company domain
+
+Central IAM & policies
+
+Linked to Google Workspace / Cloud Identity
+
+👉 Similar to Azure AD Tenant
+
+2️⃣ Folder (Optional Layer)
+
+Used to group projects
+
+For department-based separation
+
+IAM policies can be applied here
+
+Example:
+
+Folder: Production
+
+Folder: Non-Production
+
+Folder: Finance
+
+Folder: DevOps
+
+👉 Azure equivalent: Management Groups
+
+3️⃣ Project (Most Important in GCP)
+
+Everything lives inside a Project
+
+Billing attached at project level
+
+IAM roles assigned at project level
+
+APIs enabled per project
+
+👉 Azure equivalent: Subscription
+👉 But also behaves like Resource Group in terms of scoping.
+
+💡 Key Interview Line:
+
+In GCP, Project is the primary isolation boundary for billing, IAM, and resources.
+
+4️⃣ VPC Network
+
+Created inside a Project
+
+Global resource in GCP (important difference!)
+
+Can have subnets across multiple regions
+
+👉 Azure VNet is regional
+👉 GCP VPC is global
+
+5️⃣ Subnet
+
+Regional resource
+
+Created inside VPC
+
+Defines IP range
+________________________
+
+6️⃣ Resources
+
+Inside Project:
+
+Compute Engine (VM)
+
+GKE
+
+Cloud SQL
+
+Load Balancer
+
+Cloud Storage
+
+IAM policies
+
+Firewall rules
