@@ -1,0 +1,56 @@
+| Cloud | Authentication      | Authorization             | Identity Type            |
+| ----- | ------------------- | ------------------------- | ------------------------ |
+| AWS   | IAM Users / Roles   | IAM Policies              | User / Role              |
+| Azure | Entra ID (Azure AD) | Azure RBAC                | User / Service Principal |
+| GCP   | Service Account     | IAM Roles (Project level) | Service Account          |
+_______________________________________________________________
+
+# AWS (IAM User + Role + Policy)                                  # Azure (Entra ID User + RBAC)                                        # GCP (Service Account + IAM Binding)
+terraform { required_providers { aws={source="hashicorp/aws"} } }  terraform { required_providers { azurerm={source="hashicorp/azurerm"} azuread={source="hashicorp/azuread"} } }  terraform { required_providers { google={source="hashicorp/google"} } }
+provider "aws" { region="ap-south-1" }                             provider "azurerm" { features {} }                                   provider "google" { project="my-gcp-project-id" region="asia-south1" }
+                                                                    provider "azuread" {}                                                
+
+# 1️⃣ IDENTITY (User / Service Account)                           # 1️⃣ IDENTITY (User)                                                   # 1️⃣ IDENTITY (Service Account)
+resource "aws_iam_user" "user" {                                   resource "azuread_user" "user" {                                     resource "google_service_account" "sa" {
+  name = "demo-user"                                                  user_principal_name = "demo-user@yourtenant.onmicrosoft.com"          account_id   = "demo-service-account"
+  tags = { Environment="dev" }                                        display_name        = "Demo User"                                     display_name = "Demo Service Account"
+}                                                                     password            = "P@ssword123!"                                  }
+                                                                    }
+
+# 2️⃣ POLICY / ROLE DEFINITION                                     # 2️⃣ ROLE ASSIGNMENT (RBAC)                                            # 2️⃣ IAM ROLE BINDING
+resource "aws_iam_policy" "s3_policy" {                             resource "azurerm_resource_group" "rg" {                              resource "google_project_iam_member" "binding" {
+  name = "s3-read-policy"                                              name     = "demo-rg"                                                    project = "my-gcp-project-id"
+  policy = jsonencode({                                                location = "centralindia"                                              role    = "roles/storage.objectViewer"
+    Version = "2012-10-17"                                                                                                                    member  = "serviceAccount:${google_service_account.sa.email}"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:ListBucket","s3:GetObject"]
+      Resource = "*"
+    }]
+  })
+}
+
+# 3️⃣ ATTACH POLICY / ASSIGN ROLE                                   # 3️⃣ ASSIGN BUILT-IN ROLE                                               # (Already bound above at project level)
+resource "aws_iam_user_policy_attachment" "attach" {                 resource "azurerm_role_assignment" "rbac" {
+  user       = aws_iam_user.user.name                                   scope                = azurerm_resource_group.rg.id
+  policy_arn = aws_iam_policy.s3_policy.arn                             role_definition_name = "Reader"
+}                                                                       principal_id         = azuread_user.user.object_id
+                                                                      }
+
+# 4️⃣ IAM ROLE (Assume Role example for EC2)                         # 4️⃣ NOTES (Interview)                                                   # 4️⃣ NOTES (Interview)
+resource "aws_iam_role" "ec2_role" {                                   # Azure uses Entra ID for Authentication                                # GCP IAM is project/folder/org scoped
+  name = "ec2-role"                                                     # RBAC for Authorization                                                # Roles are primitive, predefined, or custom
+  assume_role_policy = jsonencode({                                     # No separate policy attachment like AWS                                # Binding = role + member
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_attach" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
