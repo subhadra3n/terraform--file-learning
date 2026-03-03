@@ -1,0 +1,56 @@
+# AWS (S3 Bucket)                                                     # Azure (Storage Account + Container)                                     # GCP (Cloud Storage Bucket)
+terraform { required_providers { aws={source="hashicorp/aws"} } }     terraform { required_providers { azurerm={source="hashicorp/azurerm"} } }   terraform { required_providers { google={source="hashicorp/google"} } }
+provider "aws" { region="ap-south-1" }                                provider "azurerm" { features {} }                                        provider "google" { project="my-gcp-project-id" region="asia-south1" }
+
+# 1️⃣ BASIC STORAGE                                                   # 1️⃣ BASIC STORAGE                                                        # 1️⃣ BASIC STORAGE
+resource "aws_s3_bucket" "bucket" {                                   resource "azurerm_resource_group" "rg" {                                  resource "google_storage_bucket" "bucket" {
+  bucket = "demo-unique-bucket-12345"    # must be globally unique       name="demo-rg"                                                             name     = "demo-unique-bucket-12345"   # globally unique
+}                                                                      location="centralindia"                                                    location = "ASIA-SOUTH1"                # bucket location/region
+                                                                       }                                                                            uniform_bucket_level_access = true
+                                                                       resource "azurerm_storage_account" "sa" {                                   force_destroy = true
+                                                                         name="demostgacct12345"         # 3-24 lowercase/numbers only              versioning { enabled = true }
+                                                                         resource_group_name=azurerm_resource_group.rg.name                         lifecycle_rule {
+                                                                         location=azurerm_resource_group.rg.location                                  condition { age = 30 }
+                                                                         account_tier="Standard"                                                     action    { type = "Delete" }
+                                                                         account_replication_type="LRS"                                              }
+                                                                         min_tls_version="TLS1_2"                                                  }
+                                                                         allow_nested_items_to_be_public=false                                      }
+                                                                         blob_properties { versioning_enabled = true }
+                                                                       }
+                                                                       resource "azurerm_storage_container" "container" {
+                                                                         name="demo-container"
+                                                                         storage_account_name=azurerm_storage_account.sa.name
+                                                                         container_access_type="private"
+                                                                       }
+
+# 2️⃣ VERSIONING                                                     # 2️⃣ VERSIONING                                                            # 2️⃣ ENCRYPTION / VERSIONING
+resource "aws_s3_bucket_versioning" "ver" {                           # (Enabled at storage account blob_properties.versioning_enabled=true)        # (GCS encrypts by default; versioning enabled above)
+  bucket = aws_s3_bucket.bucket.id
+  versioning_configuration { status = "Enabled" }
+}
+
+# 3️⃣ SERVER-SIDE ENCRYPTION                                         # 3️⃣ SERVER-SIDE ENCRYPTION                                                 # 3️⃣ IAM ACCESS
+resource "aws_s3_bucket_server_side_encryption_configuration" "sse" { # Default encryption is handled by Storage Account (Microsoft-managed keys)  resource "google_storage_bucket_iam_member" "viewer" {
+  bucket = aws_s3_bucket.bucket.id                                                                                                                      bucket = google_storage_bucket.bucket.name
+  rule {                                                                                                                                                role   = "roles/storage.objectViewer"
+    apply_server_side_encryption_by_default { sse_algorithm = "AES256" }                                                                               member = "user:someone@example.com"
+  }                                                                                                                                                   }
+
+# 4️⃣ BLOCK PUBLIC ACCESS                                            # 4️⃣ BLOCK PUBLIC ACCESS                                                    # 4️⃣ PUBLIC ACCESS PREVENTION
+resource "aws_s3_bucket_public_access_block" "block" {                # Container is private above; Storage account disallows nested public        public_access_prevention = "enforced"   # already set above
+  bucket                  = aws_s3_bucket.bucket.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# 5️⃣ LIFECYCLE (example: expire after 30 days)                       # 5️⃣ LIFECYCLE (example: delete after 30 days)                               # 5️⃣ NOTES (Interview)
+resource "aws_s3_bucket_lifecycle_configuration" "lc" {               # (Azure lifecycle is typically via Storage Management Policy;               # - Bucket name must be globally unique
+  bucket = aws_s3_bucket.bucket.id                                    # here we used GCS-style lifecycle via bucket lifecycle above for GCP)       # - GCS "uniform_bucket_level_access" like "bucket-level IAM"
+  rule {
+    id="expire-30-days"
+    status="Enabled"
+    expiration { days = 30 }
+  }
+}
