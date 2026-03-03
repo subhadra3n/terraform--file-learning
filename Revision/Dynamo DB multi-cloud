@@ -1,0 +1,71 @@
+# AWS (DynamoDB - NoSQL key/value)                                              # Azure (Cosmos DB - NoSQL)                                                        # GCP (Firestore - Native mode)
+terraform { required_providers { aws={source="hashicorp/aws"} } }               terraform { required_providers { azurerm={source="hashicorp/azurerm"} } }  terraform { required_providers { google={source="hashicorp/google"} } }
+provider "aws" { region="ap-south-1" }                                          provider "azurerm" { features {} }                                               provider "google" { project="my-gcp-project-id" region="asia-south1" }
+
+# 1️⃣ BASIC RESOURCE                                                           # 1️⃣ BASIC RESOURCE                                                              # 1️⃣ BASIC RESOURCE
+resource "aws_dynamodb_table" "table" {                                         resource "azurerm_resource_group" "rg" {                                         resource "google_firestore_database" "db" {
+  name           = "demo-orders"                                                  name     = "demo-rg"                                                               name        = "(default)"      # Firestore default DB
+  billing_mode   = "PAY_PER_REQUEST"   # On-demand                               location = "centralindia"                                                         location_id = "asia-south1"
+  hash_key       = "pk"                                                         }                                                                                  type        = "FIRESTORE_NATIVE"
+  range_key      = "sk"                                                         resource "azurerm_cosmosdb_account" "acct" {                                      }
+                                                                                  name                = "democosmosacct12345"    # globally unique lowercase only
+  attribute {                                                                     location            = "centralindia"
+    name = "pk"                                                                   resource_group_name = azurerm_resource_group.rg.name
+    type = "S"                                                                   offer_type          = "Standard"
+  }                                                                               kind                = "GlobalDocumentDB"       # SQL API
+  attribute {                                                                     consistency_policy { consistency_level = "Session" }
+    name = "sk"                                                                   geo_location { location = "centralindia" failover_priority = 0 }
+    type = "S"                                                                   capabilities { name = "EnableServerless" }    # Serverless (like on-demand)
+  }                                                                               public_network_access_enabled = true           # set false + private endpoints for private
+                                                                                  automatic_failover_enabled    = true
+  point_in_time_recovery {                                                        free_tier_enabled             = false
+    enabled = true                                                               }
+}                                                                                resource "azurerm_cosmosdb_sql_database" "db" {
+                                                                                  name                = "demo-db"
+                                                                                  resource_group_name = azurerm_resource_group.rg.name
+                                                                                  account_name        = azurerm_cosmosdb_account.acct.name
+                                                                                  throughput          = 400   # RU/s (omit if serverless is used strictly)
+                                                                                }
+                                                                                resource "azurerm_cosmosdb_sql_container" "container" {
+                                                                                  name                = "orders"
+                                                                                  resource_group_name = azurerm_resource_group.rg.name
+                                                                                  account_name        = azurerm_cosmosdb_account.acct.name
+                                                                                  database_name       = azurerm_cosmosdb_sql_database.db.name
+                                                                                  partition_key_path  = "/pk"     # important!
+                                                                                  throughput          = 400
+                                                                                  indexing_policy { indexing_mode = "consistent" included_path { path="/*" } }
+                                                                                }
+
+# 2️⃣ TTL (Expire items automatically)                                           # 2️⃣ TTL (Expire docs automatically)                                              # 2️⃣ TTL (Firestore uses TTL policies)
+resource "aws_dynamodb_table" "table_with_ttl" {                                 # Cosmos: TTL configured at container level (default_ttl is seconds)              # Terraform support depends on provider version/features
+  name         = "demo-orders-ttl"                                               resource "azurerm_cosmosdb_sql_container" "ttl_container" {
+  billing_mode = "PAY_PER_REQUEST"                                                name                = "orders-ttl"
+  hash_key     = "pk"                                                             resource_group_name = azurerm_resource_group.rg.name
+  range_key    = "sk"                                                             account_name        = azurerm_cosmosdb_account.acct.name
+  attribute { name="pk" type="S" }                                                database_name       = azurerm_cosmosdb_sql_database.db.name
+  attribute { name="sk" type="S" }                                                partition_key_path  = "/pk"
+  ttl { enabled=true attribute_name="ttl" }                                       default_ttl         = 86400   # 1 day (seconds)
+}                                                                                }
+
+# 3️⃣ INDEXES (Query patterns)                                                   # 3️⃣ INDEXES (Cosmos indexing is default; customize policy)                       # 3️⃣ INDEXES (Firestore needs composite indexes for some queries)
+resource "aws_dynamodb_table" "table_with_gsi" {                                 # Cosmos: indexing policy shown above; also supports excluded_path                 # Firestore indexes are often created outside Terraform, or via index resources
+  name         = "demo-orders-gsi"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pk"
+  range_key    = "sk"
+  attribute { name="pk" type="S" }
+  attribute { name="sk" type="S" }
+  attribute { name="gsi1pk" type="S" }
+  global_secondary_index {
+    name            = "gsi1"
+    hash_key        = "gsi1pk"
+    projection_type = "ALL"
+  }
+}
+
+# 4️⃣ ENCRYPTION / BACKUPS (Interview notes)                                     # 4️⃣ ENCRYPTION / BACKUPS (Interview notes)                                       # 4️⃣ ENCRYPTION / BACKUPS (Interview notes)
+# - DynamoDB encryption at rest is default (AWS owned key; KMS optional)          # - Cosmos DB encrypted at rest by default; CMK possible                            # - Firestore encrypted at rest by default; backups via export/managed features
+# - PITR enabled above; streams optional                                          # - Multi-region + auto-failover enabled above                                      # - Native mode, strongly consistent reads in single region (mode-dependent)
+
+# 5️⃣ ACCESS (IAM / RBAC)                                                        # 5️⃣ ACCESS (RBAC / Keys)                                                          # 5️⃣ ACCESS (IAM)
+# Use IAM policy like: dynamodb:GetItem/PutItem on table ARN                      # Cosmos: use RBAC (preview/feature), or account keys/connection strings            # Use roles like: roles/datastore.user or roles/datastore.viewer
