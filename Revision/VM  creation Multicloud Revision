@@ -1,0 +1,93 @@
+# AWS (EC2 + VPC/Subnets + NAT + NACL + SG)                          # Azure (VM + VNet/Subnets + NAT + NSG)                               # GCP (VM + VPC/Subnet + Cloud NAT + Firewall)
+terraform { required_providers { aws={source="hashicorp/aws"} } }    terraform { required_providers { azurerm={source="hashicorp/azurerm"} } }   terraform { required_providers { google={source="hashicorp/google"} } }
+provider "aws" { region="ap-south-1" }                               provider "azurerm" { features {} }                                      provider "google" { project="my-gcp-project-id" region="asia-south1" zone="asia-south1-a" }
+
+# 1️⃣ NETWORK                                                        # 1️⃣ NETWORK                                                          # 1️⃣ NETWORK
+resource "aws_vpc" "vpc" {                                           resource "azurerm_resource_group" "rg" {                               resource "google_compute_network" "vpc" {
+  cidr_block="10.10.0.0/16"                                            name="demo-rg"                                                          name="demo-vpc"
+  enable_dns_hostnames=true                                            location="centralindia"                                                 auto_create_subnetworks=false
+  tags={Name="demo-vpc"}                                              }                                                                      }
+}                                                                    resource "azurerm_virtual_network" "vnet" {                            resource "google_compute_subnetwork" "subnet" {
+resource "aws_internet_gateway" "igw" {                                 name="demo-vnet"                                                        name="demo-subnet"
+  vpc_id=aws_vpc.vpc.id                                                 location=azurerm_resource_group.rg.location                             region="asia-south1"
+}                                                                      resource_group_name=azurerm_resource_group.rg.name                      network=google_compute_network.vpc.id
+resource "aws_subnet" "public" {                                       address_space=["10.20.0.0/16"]                                           ip_cidr_range="10.30.1.0/24"
+  vpc_id=aws_vpc.vpc.id                                               }                                                                      }
+  cidr_block="10.10.1.0/24"                                          resource "azurerm_subnet" "public" {
+  availability_zone="ap-south-1a"                                      name="public-subnet"
+  map_public_ip_on_launch=true                                         resource_group_name=azurerm_resource_group.rg.name
+}                                                                      virtual_network_name=azurerm_virtual_network.vnet.name
+resource "aws_subnet" "private" {                                      address_prefixes=["10.20.1.0/24"]
+  vpc_id=aws_vpc.vpc.id                                               }
+  cidr_block="10.10.2.0/24"                                          resource "azurerm_subnet" "private" {
+  availability_zone="ap-south-1a"                                      name="private-subnet"
+}                                                                      resource_group_name=azurerm_resource_group.rg.name
+                                                                       virtual_network_name=azurerm_virtual_network.vnet.name
+                                                                       address_prefixes=["10.20.2.0/24"]
+                                                                      }
+
+# 2️⃣ NAT + ROUTES                                                   # 2️⃣ NAT + (OPTIONAL ROUTES)                                            # 2️⃣ CLOUD NAT
+resource "aws_eip" "nat_eip" { domain="vpc" }                         resource "azurerm_public_ip" "nat_pip" {                               resource "google_compute_router" "router" {
+resource "aws_nat_gateway" "nat" {                                      name="nat-pip"                                                           name="demo-router"
+  allocation_id=aws_eip.nat_eip.id                                      location="centralindia"                                                  region="asia-south1"
+  subnet_id=aws_subnet.public.id                                        resource_group_name=azurerm_resource_group.rg.name                       network=google_compute_network.vpc.id
+  depends_on=[aws_internet_gateway.igw]                                 allocation_method="Static"                                              }
+}                                                                      sku="Standard"                                                          resource "google_compute_router_nat" "nat" {
+resource "aws_route_table" "public_rt" {                               }                                                                         name="demo-nat"
+  vpc_id=aws_vpc.vpc.id                                               resource "azurerm_nat_gateway" "nat" {                                    router=google_compute_router.router.name
+  route { cidr_block="0.0.0.0/0" gateway_id=aws_internet_gateway.igw.id } name="demo-nat"                                                         region="asia-south1"
+}                                                                        location="centralindia"                                                  nat_ip_allocate_option="AUTO_ONLY"
+resource "aws_route_table_association" "pub_assoc" {                    resource_group_name=azurerm_resource_group.rg.name                       source_subnetwork_ip_ranges_to_nat="ALL_SUBNETWORKS_ALL_IP_RANGES"
+  subnet_id=aws_subnet.public.id                                        sku_name="Standard"                                                      log_config { enable=true filter="ERRORS_ONLY" }
+  route_table_id=aws_route_table.public_rt.id                          }                                                                       }
+}
+resource "aws_route_table" "private_rt" {                              resource "azurerm_nat_gateway_public_ip_association" "nat_assoc" {
+  vpc_id=aws_vpc.vpc.id                                                  nat_gateway_id=azurerm_nat_gateway.nat.id
+  route { cidr_block="0.0.0.0/0" nat_gateway_id=aws_nat_gateway.nat.id } public_ip_address_id=azurerm_public_ip.nat_pip.id
+}                                                                      }
+resource "aws_route_table_association" "pri_assoc" {                   resource "azurerm_subnet_nat_gateway_association" "priv_nat" {
+  subnet_id=aws_subnet.private.id                                        subnet_id=azurerm_subnet.private.id
+  route_table_id=aws_route_table.private_rt.id                           nat_gateway_id=azurerm_nat_gateway.nat.id
+}                                                                      }
+
+# 3️⃣ SECURITY (NACL + SG)                                            # 3️⃣ SECURITY (NSG)                                                     # 3️⃣ SECURITY (Firewall)
+resource "aws_network_acl" "public_nacl" {                              resource "azurerm_network_security_group" "nsg" {                         resource "google_compute_firewall" "ssh" {
+  vpc_id=aws_vpc.vpc.id                                                   name="vm-nsg"                                                             name="allow-ssh"
+  subnet_ids=[aws_subnet.public.id]                                       location="centralindia"                                                    network=google_compute_network.vpc.name
+  ingress { rule_no=100 protocol="tcp" action="allow" cidr_block="0.0.0.0/0" from_port=22 to_port=22 } resource_group_name=azurerm_resource_group.rg.name allow { protocol="tcp" ports=["22"] }
+  ingress { rule_no=120 protocol="tcp" action="allow" cidr_block="0.0.0.0/0" from_port=1024 to_port=65535 } security_rule { name="ssh" priority=100 direction="Inbound" access="Allow" protocol="Tcp" source_port_range="*" destination_port_range="22" source_address_prefix="0.0.0.0/0" destination_address_prefix="*" } source_ranges=["0.0.0.0/0"] target_tags=["ssh"]
+  egress  { rule_no=100 protocol="-1"  action="allow" cidr_block="0.0.0.0/0" from_port=0 to_port=0 }    security_rule { name="http" priority=110 direction="Inbound" access="Allow" protocol="Tcp" source_port_range="*" destination_port_range="80" source_address_prefix="0.0.0.0/0" destination_address_prefix="*" } }
+}                                                                      resource "azurerm_subnet_network_security_group_association" "pub_assoc" { resource "google_compute_firewall" "http" {
+resource "aws_security_group" "vm_sg" {                                   subnet_id=azurerm_subnet.public.id                                        name="allow-http"
+  name="vm-sg"                                                            network_security_group_id=azurerm_network_security_group.nsg.id           network=google_compute_network.vpc.name
+  vpc_id=aws_vpc.vpc.id                                                  }                                                                         allow { protocol="tcp" ports=["80"] }
+  ingress { from_port=22 to_port=22 protocol="tcp" cidr_blocks=["0.0.0.0/0"] }                                                                            source_ranges=["0.0.0.0/0"] target_tags=["web"]
+  ingress { from_port=80 to_port=80 protocol="tcp" cidr_blocks=["0.0.0.0/0"] }                                                                           }
+  egress  { from_port=0 to_port=0 protocol="-1" cidr_blocks=["0.0.0.0/0"] }
+}
+
+# 4️⃣ VM                                                             # 4️⃣ VM                                                                  # 4️⃣ VM (Private, via Cloud NAT)
+resource "aws_instance" "vm" {                                         resource "azurerm_public_ip" "vm_pip" {                                   resource "google_compute_instance" "vm" {
+  ami="ami-0abcdef1234567890"   # pick per region                        name="vm-pip"                                                              name="terraform-vm"
+  instance_type="t3.micro"                                            location="centralindia"                                                   machine_type="e2-medium"
+  subnet_id=aws_subnet.public.id                                       resource_group_name=azurerm_resource_group.rg.name                        zone="asia-south1-a"
+  vpc_security_group_ids=[aws_security_group.vm_sg.id]                 allocation_method="Static"                                                tags=["ssh","web"]
+  key_name="my-keypair"                                               sku="Standard"                                                            boot_disk { initialize_params { image="projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts" } }
+  tags={Name="terraform-ec2"}                                         }                                                                          network_interface { subnetwork=google_compute_subnetwork.subnet.id }  # no access_config => no public IP
+}                                                                     resource "azurerm_network_interface" "nic" {                               metadata_startup_script=<<EOF
+                                                                        name="vm-nic"                                                             #!/bin/bash
+                                                                        location="centralindia"                                                   apt-get update -y
+                                                                        resource_group_name=azurerm_resource_group.rg.name                        apt-get install -y apache2
+                                                                        ip_configuration { name="ipconfig1" subnet_id=azurerm_subnet.public.id private_ip_address_allocation="Dynamic" public_ip_address_id=azurerm_public_ip.vm_pip.id } echo "Hello from GCP" > /var/www/html/index.html
+                                                                      }                                                                          systemctl enable apache2 && systemctl start apache2
+                                                                      resource "azurerm_linux_virtual_machine" "vm" {                             EOF
+                                                                        name="terraform-vm"
+                                                                        location="centralindia"
+                                                                        resource_group_name=azurerm_resource_group.rg.name
+                                                                        size="Standard_B2s"
+                                                                        admin_username="azureuser"
+                                                                        network_interface_ids=[azurerm_network_interface.nic.id]
+                                                                        admin_ssh_key { username="azureuser" public_key="ssh-rsa AAAA...." }   # your public key
+                                                                        os_disk { caching="ReadWrite" storage_account_type="StandardSSD_LRS" }
+                                                                        source_image_reference { publisher="Canonical" offer="0001-com-ubuntu-server-jammy" sku="22_04-lts" version="latest" }
+                                                                      }</pre></td>
