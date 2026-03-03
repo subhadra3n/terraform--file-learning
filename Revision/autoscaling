@@ -1,0 +1,117 @@
+# AWS (Auto Scaling Group + Launch Template)                                     # Azure (VM Scale Set + Autoscale)                                              # GCP (Managed Instance Group + Autoscaler)
+terraform { required_providers { aws={source="hashicorp/aws"} } }                terraform { required_providers { azurerm={source="hashicorp/azurerm"} } }   terraform { required_providers { google={source="hashicorp/google"} } }
+provider "aws" { region="ap-south-1" }                                           provider "azurerm" { features {} }                                            provider "google" { project="my-gcp-project-id" region="asia-south1" zone="asia-south1-a" }
+
+# 1️⃣ LAUNCH TEMPLATE / INSTANCE TEMPLATE                                       # 1️⃣ VMSS (Compute Template)                                                   # 1️⃣ INSTANCE TEMPLATE
+resource "aws_launch_template" "lt" {                                            resource "azurerm_resource_group" "rg" {                                      resource "google_compute_instance_template" "tpl" {
+  name_prefix   = "web-lt-"                                                        name="demo-rg"                                                                  name_prefix="web-tpl-"
+  image_id      = "ami-0abcdef1234567890"   # pick correct AMI for region           location="centralindia"                                                         machine_type="e2-medium"
+  instance_type = "t3.micro"                                                     }                                                                               tags=["web"]
+  key_name      = "my-keypair"                                                   resource "azurerm_virtual_network" "vnet" {                                     disk { source_image="projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts" boot=true auto_delete=true }
+  vpc_security_group_ids = ["sg-xxxxxxxx"]                                        name="demo-vnet"                                                                network_interface { subnetwork="projects/my-gcp-project-id/regions/asia-south1/subnetworks/demo-subnet" access_config {} }
+  user_data = base64encode(<<EOF)                                                 location="centralindia"                                                          metadata_startup_script=<<EOF
+#!/bin/bash                                                                       resource_group_name=azurerm_resource_group.rg.name                              #!/bin/bash
+yum -y install httpd                                                               address_space=["10.20.0.0/16"]                                                   apt-get update -y
+echo "Hello from AWS ASG" > /var/www/html/index.html                             }                                                                               apt-get install -y apache2
+systemctl enable httpd && systemctl start httpd                                  resource "azurerm_subnet" "subnet" {                                             echo "Hello from GCP MIG" > /var/www/html/index.html
+EOF                                                                                 name="web-subnet"                                                              systemctl enable apache2 && systemctl start apache2
+}                                                                                   resource_group_name=azurerm_resource_group.rg.name                             EOF
+                                                                                    virtual_network_name=azurerm_virtual_network.vnet.name                        }
+                                                                                    address_prefixes=["10.20.1.0/24"]
+                                                                                  }
+                                                                                  # Public LB for VMSS (simple demo)
+                                                                                  resource "azurerm_public_ip" "pip" {
+                                                                                    name="vmss-pip"
+                                                                                    location="centralindia"
+                                                                                    resource_group_name=azurerm_resource_group.rg.name
+                                                                                    allocation_method="Static"
+                                                                                    sku="Standard"
+                                                                                  }
+                                                                                  resource "azurerm_lb" "lb" {
+                                                                                    name="vmss-lb"
+                                                                                    location="centralindia"
+                                                                                    resource_group_name=azurerm_resource_group.rg.name
+                                                                                    sku="Standard"
+                                                                                    frontend_ip_configuration { name="fe" public_ip_address_id=azurerm_public_ip.pip.id }
+                                                                                  }
+                                                                                  resource "azurerm_lb_backend_address_pool" "bepool" {
+                                                                                    name="bepool"
+                                                                                    loadbalancer_id=azurerm_lb.lb.id
+                                                                                  }
+
+                                                                                  resource "azurerm_linux_virtual_machine_scale_set" "vmss" {
+                                                                                    name="web-vmss"
+                                                                                    location="centralindia"
+                                                                                    resource_group_name=azurerm_resource_group.rg.name
+                                                                                    sku="Standard_B2s"
+                                                                                    instances=2
+                                                                                    admin_username="azureuser"
+                                                                                    subnet_id=azurerm_subnet.subnet.id
+                                                                                    admin_ssh_key { username="azureuser" public_key="ssh-rsa AAAA...." }  # your public key
+                                                                                    source_image_reference {
+                                                                                      publisher="Canonical" offer="0001-com-ubuntu-server-jammy" sku="22_04-lts" version="latest"
+                                                                                    }
+                                                                                    os_disk { storage_account_type="StandardSSD_LRS" caching="ReadWrite" }
+                                                                                    network_interface {
+                                                                                      name="vmss-nic"
+                                                                                      primary=true
+                                                                                      ip_configuration {
+                                                                                        name="ipconfig1"
+                                                                                        primary=true
+                                                                                        subnet_id=azurerm_subnet.subnet.id
+                                                                                        load_balancer_backend_address_pool_ids=[azurerm_lb_backend_address_pool.bepool.id]
+                                                                                      }
+                                                                                    }
+                                                                                  }
+
+# 2️⃣ AUTO SCALING GROUP (ASG)                                                   # 2️⃣ AUTOSCALE RULES (CPU-based)                                              # 2️⃣ MANAGED INSTANCE GROUP (MIG)
+resource "aws_autoscaling_group" "asg" {                                         resource "azurerm_monitor_autoscale_setting" "autoscale" {                     resource "google_compute_instance_group_manager" "mig" {
+  name                      = "web-asg"                                            name="vmss-autoscale"                                                           name="web-mig"
+  min_size                  = 2                                                     resource_group_name=azurerm_resource_group.rg.name                              zone="asia-south1-a"
+  max_size                  = 5                                                     location="centralindia"                                                         base_instance_name="web"
+  desired_capacity          = 2                                                     target_resource_id=azurerm_linux_virtual_machine_scale_set.vmss.id              version { instance_template = google_compute_instance_template.tpl.id }
+  vpc_zone_identifier       = ["subnet-aaaaaaa","subnet-bbbbbbb"]                   profile {                                                                       target_size = 2
+  health_check_type         = "EC2"                                                    name="cpu-scale"
+  launch_template {                                                                 capacity { minimum=2 maximum=5 default=2 }
+    id      = aws_launch_template.lt.id                                            rule {
+    version = "$Latest"                                                            metric_trigger {
+  }                                                                                   metric_name="Percentage CPU" metric_resource_id=azurerm_linux_virtual_machine_scale_set.vmss.id
+  tag { key="Name" value="asg-instance" propagate_at_launch=true }                   time_grain="PT1M" statistic="Average" time_window="PT5M"
+}                                                                                    time_aggregation="Average" operator="GreaterThan" threshold=70
+                                                                                   }
+                                                                                   scale_action { direction="Increase" type="ChangeCount" value="1" cooldown="PT5M" }
+                                                                                 }
+                                                                                 rule {
+                                                                                   metric_trigger {
+                                                                                     metric_name="Percentage CPU" metric_resource_id=azurerm_linux_virtual_machine_scale_set.vmss.id
+                                                                                     time_grain="PT1M" statistic="Average" time_window="PT10M"
+                                                                                     time_aggregation="Average" operator="LessThan" threshold=30
+                                                                                   }
+                                                                                   scale_action { direction="Decrease" type="ChangeCount" value="1" cooldown="PT10M" }
+                                                                                 }
+                                                                               }</pre></td>
+                                                                            <td><pre>resource "google_compute_instance_group_manager" "mig" {
+  name="web-mig"
+  zone="asia-south1-a"
+  base_instance_name="web"
+  version { instance_template = google_compute_instance_template.tpl.id }
+  target_size = 2
+}
+
+# 3️⃣ AUTOSCALER (CPU-based)
+resource "google_compute_autoscaler" "as" {
+  name   = "web-autoscaler"
+  zone   = "asia-south1-a"
+  target = google_compute_instance_group_manager.mig.id
+
+  autoscaling_policy {
+    min_replicas    = 2
+    max_replicas    = 5
+    cpu_utilization { target = 0.60 }   # 60% avg CPU
+    cooldown_period = 60
+  }
+}</pre></td>
+
+# 3️⃣ NOTES (Interview)                                                        # 3️⃣ NOTES (Interview)                                                       # 3️⃣ NOTES (Interview)
+# - ASG needs Launch Template/Config + subnets                                  # - VMSS has built-in scaling + integrates with Azure Monitor                 # - MIG + Autoscaler is the standard pattern
+# - Scale triggers via CloudWatch alarms (or target tracking)                   # - Autoscale rules: scale out/in based on metrics (CPU, queue, etc.)          # - Autoscaler uses CPU/Load/Custom metrics
