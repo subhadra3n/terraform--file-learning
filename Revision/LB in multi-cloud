@@ -1,0 +1,109 @@
+# AWS (ALB - L7 HTTP/HTTPS)                                                 # Azure (Application Gateway - L7)                                          # GCP (External HTTP(S) Load Balancer - L7)
+terraform { required_providers { aws={source="hashicorp/aws"} } }            terraform { required_providers { azurerm={source="hashicorp/azurerm"} } } terraform { required_providers { google={source="hashicorp/google"} } }
+provider "aws" { region="ap-south-1" }                                       provider "azurerm" { features {} }                                        provider "google" { project="my-gcp-project-id" region="asia-south1" }
+
+# 1️⃣ NETWORK (Attach LB to subnets)                                         # 1️⃣ NETWORK (VNet/Subnet for AppGW)                                       # 1️⃣ NETWORK (VPC/Subnet)
+# Assumes you already have: vpc_id + 2 public subnets                         resource "azurerm_resource_group" "rg" {                                  resource "google_compute_network" "vpc" {
+# (In interviews, say: ALB needs 2 subnets in 2 AZs)                             name="demo-rg"                                                               name="demo-vpc"
+# subnet_public_a_id, subnet_public_b_id                                        location="centralindia"                                                     auto_create_subnetworks=false
+                                                                              }                                                                           }
+                                                                              resource "azurerm_virtual_network" "vnet" {                                 resource "google_compute_subnetwork" "subnet" {
+                                                                                name="demo-vnet"                                                             name="demo-subnet"
+                                                                                location="centralindia"                                                      region="asia-south1"
+                                                                                resource_group_name=azurerm_resource_group.rg.name                           network=google_compute_network.vpc.id
+                                                                                address_space=["10.20.0.0/16"]                                                ip_cidr_range="10.30.1.0/24"
+                                                                              }                                                                           }
+
+                                                                              # App Gateway needs a dedicated subnet
+                                                                              resource "azurerm_subnet" "appgw_subnet" {
+                                                                                name="appgw-subnet"
+                                                                                resource_group_name=azurerm_resource_group.rg.name
+                                                                                virtual_network_name=azurerm_virtual_network.vnet.name
+                                                                                address_prefixes=["10.20.1.0/24"]
+                                                                              }
+
+# 2️⃣ SECURITY (LB SG)                                                       # 2️⃣ SECURITY (NSG optional; AppGW has its own rules)                        # 2️⃣ SECURITY (Firewall allow healthcheck/80)
+resource "aws_security_group" "alb_sg" {                                      # (Often NSG is on subnet/NIC; keep simple for interview)                    resource "google_compute_firewall" "allow_http" {
+  name        = "alb-sg"                                                                                                                                    name="allow-http"
+  description = "Allow HTTP/HTTPS to ALB"                                                                                                                  network=google_compute_network.vpc.name
+  vpc_id      = "vpc-xxxxxxxx"                                                 # (If you add NSG, allow inbound 80/443 to AppGW subnet)                      allow { protocol="tcp" ports=["80"] }
+  ingress { from_port=80  to_port=80  protocol="tcp" cidr_blocks=["0.0.0.0/0"] }                                                                         source_ranges=["0.0.0.0/0"]
+  ingress { from_port=443 to_port=443 protocol="tcp" cidr_blocks=["0.0.0.0/0"] }                                                                         target_tags=["web"]
+  egress  { from_port=0 to_port=0 protocol="-1" cidr_blocks=["0.0.0.0/0"] }                                                                              }
+
+# 3️⃣ TARGET GROUP / BACKEND                                                 # 3️⃣ BACKEND POOL (AppGW)                                                   # 3️⃣ BACKEND (Instance Group)
+resource "aws_lb_target_group" "tg" {                                          resource "azurerm_public_ip" "appgw_pip" {                                  resource "google_compute_instance_template" "tpl" {
+  name     = "demo-tg"                                                          name="appgw-pip"                                                             name_prefix="web-tpl-"
+  port     = 80                                                                 location="centralindia"                                                      machine_type="e2-medium"
+  protocol = "HTTP"                                                             resource_group_name=azurerm_resource_group.rg.name                           tags=["web"]
+  vpc_id   = "vpc-xxxxxxxx"                                                     allocation_method="Static"                                                   disk { source_image="projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts" auto_delete=true boot=true }
+  health_check { path="/" matcher="200" }                                       sku="Standard"                                                               network_interface { subnetwork=google_compute_subnetwork.subnet.id access_config {} }
+}                                                                             }                                                                            metadata_startup_script=<<EOF
+# Attach instances later using aws_lb_target_group_attachment                 # Backend pool defined inside AppGW below                                    #!/bin/bash
+                                                                                           apt-get update -y
+                                                                                           apt-get install -y apache2
+                                                                                           echo "Hello from GCP backend" > /var/www/html/index.html
+                                                                                           systemctl enable apache2 && systemctl start apache2
+                                                                                           EOF
+                                                                                                                                                 }
+
+                                                                              # Managed Instance Group (MIG)
+                                                                              resource "google_compute_instance_group_manager" "mig" {
+                                                                                name="web-mig"
+                                                                                zone="asia-south1-a"
+                                                                                base_instance_name="web"
+                                                                                version { instance_template = google_compute_instance_template.tpl.id }
+                                                                                target_size = 2
+                                                                              }
+
+                                                                              resource "google_compute_health_check" "hc" {
+                                                                                name="http-hc"
+                                                                                http_health_check { port=80 request_path="/" }
+                                                                              }
+
+# 4️⃣ LOAD BALANCER + LISTENER                                                # 4️⃣ APPLICATION GATEWAY (Listener + Rule)                                   # 4️⃣ HTTP LB (URL map + Proxy + Forwarding rule)
+resource "aws_lb" "alb" {                                                       resource "azurerm_application_gateway" "appgw" {                              # Global IP for LB
+  name               = "demo-alb"                                                 name="demo-appgw"                                                           resource "google_compute_global_address" "ip" {
+  load_balancer_type = "application"                                              location="centralindia"                                                        name="lb-ip"
+  security_groups    = [aws_security_group.alb_sg.id]                              resource_group_name=azurerm_resource_group.rg.name                             }
+  subnets            = ["subnet-aaaaaaa","subnet-bbbbbbb"]                         sku { name="Standard_v2" tier="Standard_v2" capacity=1 }
+}                                                                                 gateway_ip_configuration { name="gwip" subnet_id=azurerm_subnet.appgw_subnet.id }
+
+resource "aws_lb_listener" "http" {                                               frontend_port { name="feport" port=80 }
+  load_balancer_arn = aws_lb.alb.arn                                               frontend_ip_configuration { name="feip" public_ip_address_id=azurerm_public_ip.appgw_pip.id }
+  port              = 80                                                          backend_address_pool { name="be-pool" }            # add IPs/FQDNs later
+  protocol          = "HTTP"                                                      backend_http_settings { name="be-http" port=80 protocol="Http" cookie_based_affinity="Disabled" request_timeout=30 }
+  default_action {                                                                http_listener { name="listener" frontend_ip_configuration_name="feip" frontend_port_name="feport" protocol="Http" }
+    type             = "forward"                                                  request_routing_rule { name="rule1" rule_type="Basic" http_listener_name="listener" backend_address_pool_name="be-pool" backend_http_settings_name="be-http" priority=10 }
+    target_group_arn = aws_lb_target_group.tg.arn                                }
+  }                                                                              # Note: In real setup, backend pool points to VMSS/private IPs etc.
+}
+
+                                                                              # Backend service + URL map
+                                                                              resource "google_compute_backend_service" "be" {
+                                                                                name="http-backend"
+                                                                                protocol="HTTP"
+                                                                                port_name="http"
+                                                                                load_balancing_scheme="EXTERNAL"
+                                                                                health_checks=[google_compute_health_check.hc.id]
+                                                                                backend { group = google_compute_instance_group_manager.mig.instance_group }
+                                                                              }
+                                                                              resource "google_compute_url_map" "map" {
+                                                                                name="url-map"
+                                                                                default_service=google_compute_backend_service.be.id
+                                                                              }
+                                                                              resource "google_compute_target_http_proxy" "proxy" {
+                                                                                name="http-proxy"
+                                                                                url_map=google_compute_url_map.map.id
+                                                                              }
+                                                                              resource "google_compute_global_forwarding_rule" "fwd" {
+                                                                                name="http-fwd"
+                                                                                ip_protocol="TCP"
+                                                                                port_range="80"
+                                                                                target=google_compute_target_http_proxy.proxy.id
+                                                                                ip_address=google_compute_global_address.ip.address
+                                                                              }
+
+# 5️⃣ NOTES (Interview)                                                      # 5️⃣ NOTES (Interview)                                                      # 5️⃣ NOTES (Interview)
+# - ALB is L7; NLB is L4                                                     # - App Gateway = L7; Azure LB = L4                                          # - HTTP(S) LB is global anycast; TCP/UDP LB exists too
+# - Needs 2 subnets (usually 2 AZs)                                          # - AppGW needs its own subnet                                               # - Backends usually MIG/NEGs; health check required
