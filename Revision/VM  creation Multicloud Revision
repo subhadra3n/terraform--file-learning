@@ -1,3 +1,26 @@
+
+AWS (EC2 + VPC/Subnets + NAT + SG)                # Azure (VM + VNet/Subnets + NAT + NSG)           # GCP (VM + VPC/Subnet + Cloud NAT + Firewall)
+
+provider                                         provider                                         provider
+
+1. vpc                                           1. resource_group                                1. vpc_network---no cidr
+2. subnet                                        2. virtual_network (VNet)                        2. subnet
+3. internet_gateway                              3. subnet                                        3. cloud_router
+4. route_table (public)                          4. public_ip                                     4. cloud_nat
+5. route_table_association                       5. nat_gateway                                   5. firewall_rule
+6. elastic_ip                                    6. subnet_nat_gateway_association                6. compute_instance (VM)
+7. nat_gateway                                   7. network_security_group (NSG)
+8. private_route_table                           8. subnet_nsg_association
+9. private_route_table_association               9. network_interface (NIC)
+10. security_group                               10. virtual_machine (VM)
+11. network_acl
+12. ec2_instance
+
+
+
+
+
+_______________________________________________________________________________________________________________________________________________________________________________________________________________________
 # AWS (EC2 + VPC/Subnets + NAT + NACL + SG)                          # Azure (VM + VNet/Subnets + NAT + NSG)                               # GCP (VM + VPC/Subnet + Cloud NAT + Firewall)
 terraform { required_providers { aws={source="hashicorp/aws"} } }    terraform { required_providers { azurerm={source="hashicorp/azurerm"} } }   terraform { required_providers { google={source="hashicorp/google"} } }
 provider "aws" { region="ap-south-1" }                               provider "azurerm" { features {} }                                      provider "google" { project="my-gcp-project-id" region="asia-south1" zone="asia-south1-a" }
